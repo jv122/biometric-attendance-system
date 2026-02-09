@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Defaulter List{% endblock %}
+
+{% block content %}
+<h2 class="section-title">Defaulter List (< 75% Attendance)</h2>
+
+        <div class="card">
+            {% if defaulters %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Class</th>
+                        <th>Attendance</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in defaulters %}
+                    <tr>
+                        <td>
+                            <strong>{{ d.name }}</strong><br>
+                            <small>{{ d.enrollment }}</small>
+                        </td>
+                        <td>{{ d['class'] }}</td>
+                        <td>
+                            <strong>{{ d.percentage }}%</strong>
+                            <br><small>{{ d.attended }}/{{ d.total }} sessions</small>
+                        </td>
+                        <td><span class="badge" style="background: #fee2e2; color: #991b1b;">Critical</span></td>
+                        <td>
+                            <a href="mailto:?subject=Low Attendance Warning: {{ d.name }}&body=Dear Parent,%0D%0A%0D%0AThis is to inform you that your ward {{ d.name }} ({{ d.enrollment }}) has a critically low attendance of {{ d.percentage }}%.%0D%0A%0D%0APlease meet the undefined faculty immediately.%0D%0A%0D%0ARegards,%0D%0ABiometric Attendance System"
+                                class="btn btn-primary"
+                                style="background-color: #f59e0b; padding: 0.5rem 1rem; width: auto; font-size: 0.9rem;">
+                                <i class="fas fa-envelope"></i> Send Warning
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="text-align: center; padding: 2rem; color: #666;">
+                <p>No defaulters found. Everyone is attending classes!</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endblock %}

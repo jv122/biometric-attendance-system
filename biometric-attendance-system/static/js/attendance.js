@@ -1,0 +1,444 @@
+let video = null;
+let canvas = null;
+// Used for scaling calculations
+let currentScale = 1;
+let overlayCanvas = null;
+let overlayContext = null;
+let stream = null;
+let attendanceLog = [];
+let markedStudents = new Set();
+let isProcessing = false;
+
+// Session State
+let currentSessionId = null;
+let sessionEndTime = null;
+let timerInterval = null;
+
+document.addEventListener('DOMContentLoaded', function () {
+    video = document.getElementById('video');
+    canvas = document.getElementById('canvas');
+    overlayCanvas = document.getElementById('overlay-canvas');
+    if (overlayCanvas) overlayContext = overlayCanvas.getContext('2d');
+
+    // Check for active session on load
+    checkSessionStatus();
+});
+
+function getCSRFToken() {
+    // Try to get from meta tag first (standard in base.html now)
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) return meta.getAttribute('content');
+
+    // Fallback: try hidden input if available (less reliable for fetch but ok)
+    const input = document.querySelector('input[name="csrf_token"]');
+    if (input) return input.value;
+
+    return '';
+}
+
+function updateUIState(state, data = {}) {
+    const startBtn = document.getElementById('startSessionBtn');
+    const endBtn = document.getElementById('endSessionBtn');
+    const reopenBtn = document.getElementById('reopenSessionBtn');
+    const statusDisplay = document.getElementById('session-status-display');
+    const statusBadge = document.getElementById('status-badge');
+
+    // Reset defaults
+    startBtn.style.display = 'inline-block';
+    endBtn.disabled = true;
+    endBtn.style.display = 'inline-block';
+    reopenBtn.style.display = 'none';
+    statusDisplay.style.display = 'none';
+    document.getElementById('class_name').disabled = false;
+    document.getElementById('subject_id').disabled = false;
+    document.getElementById('duration').disabled = false;
+
+    if (state === 'Active' || state === 'Reopened') {
+        startBtn.style.display = 'none';
+        endBtn.disabled = false;
+        reopenBtn.style.display = 'none';
+        statusDisplay.style.display = 'flex';
+
+        document.getElementById('class_name').disabled = true;
+        document.getElementById('subject_id').disabled = true;
+        document.getElementById('duration').disabled = true;
+
+        if (state === 'Active') {
+            statusBadge.innerText = 'Active';
+            statusBadge.style.background = 'var(--success)';
+            startTimer(data.remaining_minutes);
+        } else {
+            statusBadge.innerText = 'Reopened (Late Marking)';
+            statusBadge.style.background = '#f59e0b';
+            document.getElementById('timer-display').innerText = '--:--';
+            stopTimer(); // No timer for reopened session
+        }
+
+        // Ensure camera is running
+        if (!stream) startCameraInternal();
+
+    } else if (state === 'Ended') {
+        startBtn.style.display = 'inline-block';
+        startBtn.innerText = 'Start New Session';
+        endBtn.style.display = 'none';
+        reopenBtn.style.display = 'inline-block';
+        statusDisplay.style.display = 'flex';
+
+        statusBadge.innerText = 'Ended';
+        statusBadge.style.background = '#ef4444';
+        stopTimer();
+        stopCamera();
+    }
+}
+
+function checkSessionStatus() {
+    fetch('/api/session_status')
+        .then(res => res.json())
+        .then(data => {
+            if (data.active) {
+                currentSessionId = data.session_id;
+                // Pre-fill fields
+                document.getElementById('class_name').value = data.class_name;
+                // Trigger loadSubjects to populate subject (async needs handling) but for now just set ID might fail if options not loaded.
+                // Simplified: Just set state.
+                updateUIState(data.status, data);
+            }
+        });
+}
+
+function startSession() {
+    const classSelect = document.getElementById('class_name');
+    const subjectSelect = document.getElementById('subject_id');
+    const durationInput = document.getElementById('duration');
+
+    if (!classSelect.value || !subjectSelect.value) {
+        alert('Please select class and subject first');
+        return;
+    }
+
+    const duration = parseInt(durationInput.value) || 10;
+
+    fetch('/api/start_session', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify({
+            class_name: classSelect.value,
+            subject_id: subjectSelect.value,
+            duration: duration
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                currentSessionId = data.session_id;
+                updateUIState('Active', { remaining_minutes: duration });
+                showResult('Session Started', 'success');
+            } else {
+                alert(data.message);
+            }
+        });
+}
+
+function endSession() {
+    if (!confirm('Are you sure you want to end the session? This will mark all unmarked students as Absent.')) return;
+
+    fetch('/api/end_session', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify({ session_id: currentSessionId })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                updateUIState('Ended');
+                showResult('Session Ended. Absentees Marked.', 'info');
+            } else {
+                alert(data.message || 'Failed to end session');
+            }
+        })
+        .catch(err => {
+            console.error("End Session Error:", err);
+            alert('Error connecting to server: ' + err.message);
+        });
+}
+
+function reopenSession() {
+    fetch('/api/reopen_session', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify({ session_id: currentSessionId })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                updateUIState('Reopened');
+                showResult('Session Reopened. Marking as Late.', 'warning');
+            }
+        });
+}
+
+// Timer Logic
+function startTimer(minutes) {
+    stopTimer();
+    const now = new Date().getTime();
+    sessionEndTime = now + (minutes * 60 * 1000);
+
+    updateTimerDisplay(); // Initial
+    timerInterval = setInterval(updateTimerDisplay, 1000);
+}
+
+function stopTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+}
+
+function updateTimerDisplay() {
+    const now = new Date().getTime();
+    const distance = sessionEndTime - now;
+
+    if (distance < 0) {
+        stopTimer();
+        document.getElementById('timer-display').innerText = "00:00";
+        document.getElementById('timer-display').style.color = 'red';
+        // Optional: Auto-end? User wanted "marked absent by default", implying end.
+        // But also "faculty can reopen".
+        // Let's just alert visually.
+        showResult('Time Expired. Please End Session.', 'error');
+        return;
+    }
+
+    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+    document.getElementById('timer-display').innerText =
+        (minutes < 10 ? "0" + minutes : minutes) + ":" + (seconds < 10 ? "0" + seconds : seconds);
+    document.getElementById('timer-display').style.color = 'inherit';
+}
+
+// Camera Logic (Simplified helpers)
+function toggleCamera() {
+    if (stream) stopCamera();
+    else startCameraInternal();
+}
+
+function startCameraInternal() {
+    const placeholder = document.getElementById('camera-placeholder');
+    const overlay = document.getElementById('scanner-overlay');
+
+    // Safety check for localhost/https
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        alert('Camera requires Secure Context (HTTPS) or Localhost.');
+        return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } })
+        .then(mediaStream => {
+            stream = mediaStream;
+            video.srcObject = mediaStream;
+
+            video.onloadedmetadata = () => {
+                video.play();
+
+                // Set overlay canvas size to match video source resolution
+                if (overlayCanvas) {
+                    overlayCanvas.width = video.videoWidth;
+                    overlayCanvas.height = video.videoHeight;
+                }
+
+                captureAndRecognize();
+                placeholder.style.display = 'none';
+                overlay.style.display = 'block';
+            };
+        })
+        .catch(err => {
+            console.error("Camera Error:", err);
+            alert("Could not access camera: " + err.message);
+        });
+}
+
+function stopCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+        video.srcObject = null;
+
+        document.getElementById('camera-placeholder').style.display = 'block';
+        document.getElementById('scanner-overlay').style.display = 'none';
+
+        if (overlayContext && overlayCanvas) {
+            overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        }
+    }
+}
+
+// Recognition Loop
+function captureAndRecognize() {
+    if (!video || !canvas || !stream) return;
+    if (isProcessing) {
+        requestAnimationFrame(captureAndRecognize);
+        return;
+    }
+
+    // Ensure video is ready
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+        requestAnimationFrame(captureAndRecognize);
+        return;
+    }
+
+    const context = canvas.getContext('2d');
+
+    // Downscale for performance (max width 600px)
+    const MAX_WIDTH = 600;
+    const originalWidth = video.videoWidth;
+    const originalHeight = video.videoHeight;
+
+    if (originalWidth > MAX_WIDTH) {
+        currentScale = MAX_WIDTH / originalWidth;
+        canvas.width = MAX_WIDTH;
+        canvas.height = originalHeight * currentScale;
+    } else {
+        currentScale = 1;
+        canvas.width = originalWidth;
+        canvas.height = originalHeight;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+    // Only send if session active (or reopened)
+    if (!currentSessionId) {
+        requestAnimationFrame(captureAndRecognize);
+        return;
+    }
+
+    isProcessing = true;
+
+    fetch('/api/recognize_face', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
+        },
+        body: JSON.stringify({
+            image: imageData,
+            class_name: document.getElementById('class_name').value,
+            subject_id: document.getElementById('subject_id').value
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                processResults(data.results);
+            } else {
+                showResult(data.error || data.message || 'Recognition Error', 'error');
+                // Clear overlay if error
+                if (overlayContext && overlayCanvas) {
+                    overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                }
+            }
+        })
+        .catch(err => console.error(err))
+        .finally(() => {
+            isProcessing = false;
+            if (stream) requestAnimationFrame(captureAndRecognize);
+        });
+}
+
+function processResults(results) {
+    // Clear previous drawings
+    if (overlayContext && overlayCanvas) {
+        overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
+
+    if (!results || results.length === 0) {
+        showResult('', 'none');
+        return;
+    }
+
+    let msgParts = [];
+    results.forEach(res => {
+        // Draw Box
+        if (res.location && overlayContext) {
+            const [top, right, bottom, left] = res.location.map(val => val / currentScale);
+            const width = right - left;
+            const height = bottom - top;
+
+            overlayContext.lineWidth = 4;
+            if (res.status === 'marked' || res.status === 'existing') {
+                overlayContext.strokeStyle = '#22c55e'; // Green
+                overlayContext.fillStyle = 'rgba(34, 197, 94, 0.2)';
+            } else if (res.status === 'liveness_failed') {
+                overlayContext.strokeStyle = '#f59e0b'; // Yellow
+                overlayContext.fillStyle = 'rgba(245, 158, 11, 0.2)';
+            } else {
+                overlayContext.strokeStyle = '#ef4444'; // Red (Unknown)
+                overlayContext.fillStyle = 'rgba(239, 68, 68, 0.2)';
+            }
+
+            overlayContext.beginPath();
+            overlayContext.rect(left, top, width, height);
+            overlayContext.stroke();
+            overlayContext.fill();
+        }
+
+        if (res.status === 'marked' || res.status === 'existing') {
+            if (!markedStudents.has(res.enrollment)) {
+                markedStudents.add(res.enrollment);
+                addLog(res.name, res.enrollment, res.message, res.status === 'marked' ? 'var(--success)' : 'var(--warning)');
+                msgParts.push(res.name + ' ✓');
+            }
+        } else if (res.status === 'liveness_failed') {
+            msgParts.push('Please Smile 😊');
+        } else if (res.status === 'unknown') {
+            // Optional: msgParts.push('Unknown');
+        }
+    });
+
+    if (msgParts.length > 0) {
+        showResult(msgParts.join(', '), 'success');
+    } else {
+        // If only unknown faces
+        const unknownCount = results.filter(r => r.status === 'unknown').length;
+        if (unknownCount > 0) showResult(`${unknownCount} Face(s) Detected (Unknown)`, 'error');
+        else showResult('', 'none');
+    }
+}
+
+function showResult(msg, type) {
+    const el = document.getElementById('recognition-result');
+    if (type === 'none') {
+        el.style.display = 'none';
+        return;
+    }
+    el.style.display = 'flex';
+    el.innerHTML = msg;
+
+    // Reset styles
+    el.style.backgroundColor = type === 'success' ? '#dcfce7' : (type === 'error' ? '#fee2e2' : '#fef3c7');
+    el.style.color = type === 'success' ? '#166534' : (type === 'error' ? '#991b1b' : '#92400e');
+}
+
+function addLog(name, enrollment, status, color) {
+    const logContent = document.getElementById('log-content');
+    const time = new Date().toLocaleTimeString();
+
+    // Clear placeholder
+    if (logContent.innerText.includes('No records')) logContent.innerHTML = '';
+
+    const div = document.createElement('div');
+    div.style.padding = '0.5rem';
+    div.style.borderBottom = '1px solid #eee';
+    div.innerHTML = `<b>${name}</b> (${enrollment}) <span style="float:right; color:${color}">${status}</span>`;
+
+    logContent.insertBefore(div, logContent.firstChild);
+    document.getElementById('log-count').innerText = logContent.children.length;
+}

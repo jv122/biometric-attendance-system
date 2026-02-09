@@ -1,0 +1,10 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Werkzeug
+opencv-python
+face-recognition
+numpy
+Pillow
+pandas
+openpyxl

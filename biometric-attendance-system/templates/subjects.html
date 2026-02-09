@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Subjects{% endblock %}
+
+{% block content %}
+<div class="row" style="display: flex; gap: 2rem; flex-wrap: wrap;">
+    <div class="col" style="flex: 1; min-width: 300px;">
+        <div class="form-section">
+            <h2>Add New Subject</h2>
+            <form action="{{ url_for('add_subject') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label>Subject Name</label>
+                    <input type="text" name="name" placeholder="e.g. Data Structures" required>
+                </div>
+                <div class="form-group">
+                    <label>Class</label>
+                    <select name="class_name" id="class_name" required onchange="updateSemesters()">
+                        <option value="">Select Class</option>
+                        <option value="FY">FY</option>
+                        <option value="SY">SY</option>
+                        <option value="TY">TY</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Semester</label>
+                    <select name="semester" id="semester" required>
+                        <option value="">Select Class First</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Subject</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col" style="flex: 2; min-width: 300px;">
+        <div class="card">
+            <h3>Current Subjects</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Class</th>
+                        <th>Semester</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in subjects %}
+                    <tr>
+                        <td>{{ sub.subject_id }}</td>
+                        <td>{{ sub.name }}</td>
+                        <td><span class="badge">{{ sub.class_name }}</span></td>
+                        <td>Sem {{ sub.semester }}</td>
+                        <td>
+                            <form action="{{ url_for('delete_subject', id=sub.subject_id) }}" method="POST"
+                                onsubmit="return confirm('Delete this subject?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn-icon delete" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+    function updateSemesters() {
+        const classSelect = document.getElementById('class_name');
+        const semesterSelect = document.getElementById('semester');
+        const selectedClass = classSelect.value;
+
+        semesterSelect.innerHTML = '<option value="">Select Semester</option>';
+
+        let options = [];
+        if (selectedClass === 'FY') {
+            options = [1, 2];
+        } else if (selectedClass === 'SY') {
+            options = [3, 4];
+        } else if (selectedClass === 'TY') {
+            options = [5, 6];
+        }
+
+        options.forEach(sem => {
+            const option = document.createElement('option');
+            option.value = sem;
+            option.text = 'Semester ' + sem;
+            semesterSelect.appendChild(option);
+        });
+    }
+</script>
+{% endblock %}

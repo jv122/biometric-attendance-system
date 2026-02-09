@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Mark Attendance - SmartKeep{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div style="margin-bottom: 2rem;">
+        <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--text-main);">Face Recognition Attendance</h2>
+        <p style="color: var(--text-muted);">Select a class and subject to begin scanning.</p>
+    </div>
+
+    <div class="dashboard-grid" style="grid-template-columns: 3fr 2fr; align-items: start;">
+
+        <!-- Camera Section -->
+        <div class="card" style="padding: 1.5rem;">
+            <div class="camera-box"
+                style="position: relative; background: #000; min-height: 400px; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem;">
+                <!-- Video Element -->
+                <video id="video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                <canvas id="canvas" style="display: none;"></canvas>
+                <canvas id="overlay-canvas"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
+
+                <!-- Overlay Elements when camera is off/loading -->
+                <div id="camera-placeholder" style="position: absolute; color: white; text-align: center;">
+                    <i class="fas fa-camera" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <p>Camera is currently off</p>
+                </div>
+
+                <!-- Scanner Overlay (Only visible when active) -->
+                <div id="scanner-overlay"
+                    style="position: absolute; inset: 20px; border: 2px dashed rgba(255,255,255,0.5); border-radius: 12px; pointer-events: none; display: none;">
+                    <div
+                        style="position: absolute; top: -2px; left: -2px; width: 20px; height: 20px; border-top: 4px solid var(--success); border-left: 4px solid var(--success); border-radius: 4px 0 0 0;">
+                    </div>
+                    <div
+                        style="position: absolute; top: -2px; right: -2px; width: 20px; height: 20px; border-top: 4px solid var(--success); border-right: 4px solid var(--success); border-radius: 0 4px 0 0;">
+                    </div>
+                    <div
+                        style="position: absolute; bottom: -2px; left: -2px; width: 20px; height: 20px; border-bottom: 4px solid var(--success); border-left: 4px solid var(--success); border-radius: 0 0 0 4px;">
+                    </div>
+                    <div
+                        style="position: absolute; bottom: -2px; right: -2px; width: 20px; height: 20px; border-bottom: 4px solid var(--success); border-right: 4px solid var(--success); border-radius: 0 0 4px 0;">
+                    </div>
+                </div>
+                <div id="low-light-warning"
+                    style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: #fbbf24; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; display: none; align-items: center; gap: 0.5rem; border: 1px solid #fbbf24;">
+                    <i class="fas fa-lightbulb"></i> Low Light Detected
+                </div>
+            </div>
+
+            <!-- Recognition Status -->
+            <div id="recognition-result" class="recognition-result" style="display: none;"></div>
+        </div>
+
+        <!-- Controls & Logs -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- Controls Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-sliders-h"></i> Session Controls</h3>
+                </div>
+
+                <div class="form-group">
+                    <label for="class_name" class="form-label">Select Class</label>
+                    <div style="position: relative;">
+                        <span
+                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);">
+                            <i class="fas fa-users"></i>
+                        </span>
+                        <select id="class_name" class="form-control" style="padding-left: 2.5rem;" required
+                            onchange="updateSemesters()">
+                            <option value="">-- Choose Class --</option>
+                            <option value="FY">First Year (FY)</option>
+                            <option value="SY">Second Year (SY)</option>
+                            <option value="TY">Third Year (TY)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="semester" class="form-label">Select Semester</label>
+                    <div style="position: relative;">
+                        <span
+                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);">
+                            <i class="fas fa-layer-group"></i>
+                        </span>
+                        <select id="semester" class="form-control" style="padding-left: 2.5rem;" required
+                            onchange="loadSubjects()">
+                            <option value="">-- Select Class First --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="subject_id" class="form-label">Select Subject</label>
+                    <div style="position: relative;">
+                        <span
+                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);">
+                            <i class="fas fa-book"></i>
+                        </span>
+                        <select id="subject_id" class="form-control" style="padding-left: 2.5rem;" required disabled>
+                            <option value="">-- Select Class First --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="duration" class="form-label">Session Duration (Minutes)</label>
+                    <div style="position: relative;">
+                        <span
+                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);">
+                            <i class="fas fa-clock"></i>
+                        </span>
+                        <input type="number" id="duration" class="form-control" style="padding-left: 2.5rem;" value="10"
+                            min="1">
+                    </div>
+                </div>
+
+                <div id="session-status-display"
+                    style="margin-bottom: 1rem; padding: 0.75rem; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; display: none; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="font-weight: 600; font-size: 0.9rem; display: block;">Status</span>
+                        <span id="status-badge" class="badge" style="background: var(--primary);">Active</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-weight: 600; font-size: 0.9rem; display: block;">Time Remaining</span>
+                        <span id="timer-display"
+                            style="font-family: monospace; font-size: 1.2rem; font-weight: 700;">00:00</span>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem;">
+                    <button id="startSessionBtn" class="btn btn-primary" onclick="startSession()">
+                        <i class="fas fa-play"></i> Start Session
+                    </button>
+                    <button id="reopenSessionBtn" class="btn btn-warning" onclick="reopenSession()"
+                        style="display: none; background: #f59e0b; border-color: #d97706; color: white;">
+                        <i class="fas fa-redo"></i> Reopen
+                    </button>
+                    <button id="endSessionBtn" class="btn btn-danger" onclick="endSession()" disabled
+                        style="background: #ef4444; border-color: #dc2626; color: white;">
+                        <i class="fas fa-stop"></i> End Session
+                    </button>
+                </div>
+
+                <div style="margin-top: 0.5rem;">
+                    <button id="cameraToggleBtn" class="btn btn-secondary" onclick="toggleCamera()"
+                        style="width: 100%;">
+                        <i class="fas fa-camera"></i> Toggle Camera Preview
+                    </button>
+                </div>
+            </div>
+
+            <!-- Log Card -->
+            <div class="card"
+                style="flex: 1; min-height: 300px; max-height: 500px; display: flex; flex-direction: column;">
+                <div class="card-header" style="justify-content: space-between; display: flex; align-items: center;">
+                    <h3 class="card-title" style="margin: 0;"><i class="fas fa-history"></i> Live Log</h3>
+                    <span class="badge"
+                        style="background: var(--secondary); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;"
+                        id="log-count">0</span>
+                </div>
+                <div id="log-content" style="flex: 1; overflow-y: auto; padding-right: 0.5rem;">
+                    <div style="text-align: center; color: var(--text-light); padding: 2rem;">
+                        <p>No records this session</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateSemesters() {
+        const classSelect = document.getElementById('class_name');
+        const semesterSelect = document.getElementById('semester');
+        const selectedClass = classSelect.value;
+        const subjectSelect = document.getElementById('subject_id');
+
+        semesterSelect.innerHTML = '<option value="">Select Semester</option>';
+        subjectSelect.innerHTML = '<option value="">-- Select Class First --</option>';
+
+        let options = [];
+        if (selectedClass === 'FY') {
+            options = [1, 2];
+        } else if (selectedClass === 'SY') {
+            options = [3, 4];
+        } else if (selectedClass === 'TY') {
+            options = [5, 6];
+        }
+
+        options.forEach(sem => {
+            const option = document.createElement('option');
+            option.value = sem;
+            option.text = 'Semester ' + sem;
+            semesterSelect.appendChild(option);
+        });
+    }
+
+    function loadSubjects() {
+        const className = document.getElementById('class_name').value;
+        const semester = document.getElementById('semester').value;
+        const subjectSelect = document.getElementById('subject_id');
+
+        subjectSelect.innerHTML = '<option value="">Loading...</option>';
+        subjectSelect.disabled = true;
+
+        if (!className || !semester) {
+            subjectSelect.innerHTML = '<option value="">-- Select Semester First --</option>';
+            return;
+        }
+
+        fetch(`/api/get_subjects/${className}?semester=${semester}`)
+            .then(res => res.json())
+            .then(data => {
+                subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
+                data.forEach(sub => {
+                    const option = document.createElement('option');
+                    option.value = sub.id;
+                    option.textContent = sub.name;
+                    subjectSelect.appendChild(option);
+                });
+                subjectSelect.disabled = false;
+            })
+            .catch(err => {
+                console.error(err);
+                subjectSelect.innerHTML = '<option value="">Error loading subjects</option>';
+            });
+    }
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/attendance.js') }}"></script>
+{% endblock %}

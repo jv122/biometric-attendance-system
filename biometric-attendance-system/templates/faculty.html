@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Faculty Management</h2>
+    <a href="{{ url_for('add_faculty') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Add Faculty
+    </a>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Contact No</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in faculty_list %}
+                <tr>
+                    <td>{{ f.faculty_id }}</td>
+                    <td>{{ f.name }}</td>
+                    <td>{{ f.email }}</td>
+                    <td>{{ f.contact_no }}</td>
+                    <td>
+                        <form action="{{ url_for('delete_faculty', id=f.faculty_id) }}" method="POST"
+                            style="display:inline;"
+                            onsubmit="return confirm('Are you sure you want to delete this faculty member?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-icon delete" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center">No faculty members found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Add Student - Biometric Attendance System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="form-section">
+        <h2>Add New Student</h2>
+
+        {% if success %}
+        <div class="success-message">{{ success }}</div>
+        {% endif %}
+
+        {% if error %}
+        <div class="error-message">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="enrollment_number">Enrollment Number</label>
+                <input type="text" id="enrollment_number" name="enrollment_number" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password (Optional - Defaults to 123456)</label>
+                <input type="password" id="password" name="password" placeholder="Leave empty for default">
+            </div>
+
+            <div class="form-group">
+                <label for="dob">Date of Birth</label>
+                <input type="date" id="dob" name="dob" required>
+            </div>
+
+            <div class="form-group">
+                <label for="class_name">Class</label>
+                <select id="class_name" name="class_name" required onchange="updateSemesters()">
+                    <option value="">Select Class</option>
+                    <option value="FY">First Year (FY)</option>
+                    <option value="SY">Second Year (SY)</option>
+                    <option value="TY">Third Year (TY)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="semester">Semester</label>
+                <select id="semester" name="semester" required>
+                    <option value="">Select Class First</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="photo">Student Photo</label>
+                <input type="file" id="photo" name="photo" accept="image/*" required>
+                <small>Upload a clear front-facing photo for facial recognition.</small>
+            </div>
+
+            <div style="margin-top: 2rem;">
+                <button type="submit" class="btn btn-primary">Add Student</button>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="margin-left: 1rem;">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function updateSemesters() {
+        const classSelect = document.getElementById('class_name');
+        const semesterSelect = document.getElementById('semester');
+        const selectedClass = classSelect.value;
+
+        semesterSelect.innerHTML = '<option value="">Select Semester</option>';
+
+        let options = [];
+        if (selectedClass === 'FY') {
+            options = [1, 2];
+        } else if (selectedClass === 'SY') {
+            options = [3, 4];
+        } else if (selectedClass === 'TY') {
+            options = [5, 6];
+        }
+
+        options.forEach(sem => {
+            const option = document.createElement('option');
+            option.value = sem;
+            option.text = 'Semester ' + sem;
+            semesterSelect.appendChild(option);
+        });
+    }
+</script>
+{% endblock %}
