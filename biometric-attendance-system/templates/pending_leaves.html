@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Leave Requests{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="fas fa-clock text-warning"></i> Pending Leave Requests</h2>
+            <p class="text-muted mb-0">Review and process student leave applications</p>
+        </div>
+        <a href="{{ url_for('leave_history') }}" class="btn btn-outline-primary">
+            <i class="fas fa-history"></i> View History
+        </a>
+    </div>
+
+    {% if leaves %}
+    <!-- Statistics Card -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-warning bg-opacity-10 rounded p-3">
+                                <i class="fas fa-clock fa-2x text-warning"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h3 class="mb-0">{{ leaves|length }}</h3>
+                            <p class="text-muted mb-0 small">Pending Requests</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leave Requests Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="px-4 py-3 border-0">Student</th>
+                            <th class="py-3 border-0">Class</th>
+                            <th class="py-3 border-0">Subject</th>
+                            <th class="py-3 border-0">Leave Date</th>
+                            <th class="py-3 border-0">Applied</th>
+                            <th class="py-3 border-0">Reason</th>
+                            <th class="px-4 py-3 border-0 text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for leave in leaves %}
+                        <tr>
+                            <td class="px-4">
+                                <div>
+                                    <div class="fw-semibold">{{ leave.student.name }}</div>
+                                    <small class="text-muted">{{ leave.student.enrollment_number }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1">
+                                    {{ leave.student.class_name }} - Sem {{ leave.student.semester }}
+                                </span>
+                            </td>
+                            <td>{{ leave.subject.name }}</td>
+                            <td>
+                                <strong>{{ leave.leave_date.strftime('%d %b %Y') }}</strong>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ leave.applied_on.strftime('%d %b, %I:%M %p') }}</small>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-link text-decoration-none p-0" data-bs-toggle="modal"
+                                    data-bs-target="#viewReasonModal{{ leave.leave_id }}">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                            </td>
+                            <td class="px-4 text-end">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button class="btn btn-success" data-bs-toggle="modal"
+                                        data-bs-target="#approveModal{{ leave.leave_id }}">
+                                        <i class="fas fa-check"></i> Approve
+                                    </button>
+                                    <button class="btn btn-danger" data-bs-toggle="modal"
+                                        data-bs-target="#rejectModal{{ leave.leave_id }}">
+                                        <i class="fas fa-times"></i> Reject
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- View Reason Modal -->
+                        <div class="modal fade" id="viewReasonModal{{ leave.leave_id }}" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow">
+                                    <div class="modal-header border-0 pb-0">
+                                        <h5 class="modal-title fw-semibold">Leave Application Details</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body pt-2">
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Student</small>
+                                                <strong>{{ leave.student.name }}</strong>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Enrollment</small>
+                                                <strong>{{ leave.student.enrollment_number }}</strong>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Leave Date</small>
+                                                <strong>{{ leave.leave_date.strftime('%d %b %Y') }}</strong>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Subject</small>
+                                                <strong>{{ leave.subject.name }}</strong>
+                                            </div>
+                                        </div>
+                                        <div class="bg-light rounded p-3">
+                                            <small class="text-muted d-block mb-2">Reason for Leave</small>
+                                            <p class="mb-0">{{ leave.reason }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer border-0">
+                                        <button type="button" class="btn btn-secondary"
+                                            data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Approve Modal -->
+                        <div class="modal fade" id="approveModal{{ leave.leave_id }}" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow">
+                                    <form method="POST"
+                                        action="{{ url_for('approve_leave', leave_id=leave.leave_id) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                        <div class="modal-header bg-success text-white border-0">
+                                            <h5 class="modal-title"><i class="fas fa-check-circle"></i> Approve Leave
+                                                Request</h5>
+                                            <button type="button" class="btn-close btn-close-white"
+                                                data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-12">
+                                                    <small class="text-muted d-block">Student</small>
+                                                    <strong>{{ leave.student.name }} ({{ leave.student.enrollment_number
+                                                        }})</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">Leave Date</small>
+                                                    <strong>{{ leave.leave_date.strftime('%d %b %Y') }}</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">Subject</small>
+                                                    <strong>{{ leave.subject.name }}</strong>
+                                                </div>
+                                            </div>
+                                            <div class="bg-light rounded p-3 mb-3">
+                                                <small class="text-muted d-block mb-2">Student's Reason</small>
+                                                <p class="mb-0">{{ leave.reason }}</p>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Approval Remarks (Optional)</label>
+                                                <textarea class="form-control" name="remarks" rows="2"
+                                                    placeholder="Add any comments or notes..."></textarea>
+                                            </div>
+                                            <div class="alert alert-success mb-0">
+                                                <i class="fas fa-info-circle"></i> This will mark the student as "Leave"
+                                                for the specified date and subject.
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-0">
+                                            <button type="button" class="btn btn-light"
+                                                data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="fas fa-check"></i> Approve Leave
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Reject Modal -->
+                        <div class="modal fade" id="rejectModal{{ leave.leave_id }}" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow">
+                                    <form method="POST" action="{{ url_for('reject_leave', leave_id=leave.leave_id) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                        <div class="modal-header bg-danger text-white border-0">
+                                            <h5 class="modal-title"><i class="fas fa-times-circle"></i> Reject Leave
+                                                Request</h5>
+                                            <button type="button" class="btn-close btn-close-white"
+                                                data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-12">
+                                                    <small class="text-muted d-block">Student</small>
+                                                    <strong>{{ leave.student.name }} ({{ leave.student.enrollment_number
+                                                        }})</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">Leave Date</small>
+                                                    <strong>{{ leave.leave_date.strftime('%d %b %Y') }}</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">Subject</small>
+                                                    <strong>{{ leave.subject.name }}</strong>
+                                                </div>
+                                            </div>
+                                            <div class="bg-light rounded p-3 mb-3">
+                                                <small class="text-muted d-block mb-2">Student's Reason</small>
+                                                <p class="mb-0">{{ leave.reason }}</p>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Reason for Rejection <span
+                                                        class="text-danger">*</span></label>
+                                                <textarea class="form-control" name="remarks" rows="3"
+                                                    placeholder="Please provide a clear reason for rejecting this leave request..."
+                                                    required></textarea>
+                                                <small class="text-muted">This will be visible to the student.</small>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-0">
+                                            <button type="button" class="btn btn-light"
+                                                data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-danger">
+                                                <i class="fas fa-times"></i> Reject Leave
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-check-circle fa-4x text-success opacity-50"></i>
+            </div>
+            <h4 class="mb-2">All Caught Up!</h4>
+            <p class="text-muted mb-4">There are no pending leave requests at the moment.</p>
+            <a href="{{ url_for('leave_history') }}" class="btn btn-outline-primary">
+                <i class="fas fa-history"></i> View Leave History
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

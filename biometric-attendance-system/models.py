@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
-from datetime import datetime
+from datetime import datetime, date
 
 db = SQLAlchemy()
 
@@ -89,8 +89,8 @@ class AttendanceRecord(db.Model):
     record_id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     time = db.Column(db.Time, nullable=False)
-    status = db.Column(db.String(20), nullable=False)  # Present/Absent/Late
-    method = db.Column(db.String(20), default='FaceID') # FaceID / Manual
+    status = db.Column(db.String(20), nullable=False)  # Present/Absent/Late/Leave
+    method = db.Column(db.String(20), default='FaceID') # FaceID / Manual / Leave
     
     student_id = db.Column(db.Integer, db.ForeignKey('student.student_id'), nullable=False)
     faculty_id = db.Column(db.Integer, db.ForeignKey('faculty.faculty_id'), nullable=False)
@@ -103,3 +103,45 @@ class AttendanceRecord(db.Model):
     
     def __repr__(self):
         return f'<AttendanceRecord {self.record_id}>'
+
+class LeaveApplication(db.Model):
+    __tablename__ = 'leave_application'
+    
+    leave_id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('student.student_id'), nullable=False)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subject.subject_id'), nullable=False)
+    leave_date = db.Column(db.Date, nullable=False)
+    reason = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='Pending')  # Pending/Approved/Rejected
+    applied_on = db.Column(db.DateTime, default=datetime.utcnow)
+    approved_by = db.Column(db.Integer, db.ForeignKey('faculty.faculty_id'), nullable=True)
+    approval_date = db.Column(db.DateTime, nullable=True)
+    remarks = db.Column(db.Text, nullable=True)
+    
+    # Relationships
+    student = db.relationship('Student', backref='leave_applications', foreign_keys=[student_id])
+    subject = db.relationship('Subject', backref='leave_applications', foreign_keys=[subject_id])
+    approver = db.relationship('Faculty', backref='approved_leaves', foreign_keys=[approved_by])
+    
+    def __repr__(self):
+        return f'<LeaveApplication {self.leave_id} - {self.status}>'
+
+class Timetable(db.Model):
+    __tablename__ = 'timetable'
+    
+    timetable_id = db.Column(db.Integer, primary_key=True)
+    class_name = db.Column(db.String(10), nullable=False)
+    semester = db.Column(db.Integer, nullable=False)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subject.subject_id'), nullable=False)
+    faculty_id = db.Column(db.Integer, db.ForeignKey('faculty.faculty_id'), nullable=False)
+    day_of_week = db.Column(db.Integer, nullable=False)  # 0=Monday, 6=Sunday
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    room_number = db.Column(db.String(20), nullable=True)
+    
+    # Relationships
+    subject = db.relationship('Subject', backref='timetable_slots', foreign_keys=[subject_id])
+    faculty = db.relationship('Faculty', backref='timetable_slots', foreign_keys=[faculty_id])
+    
+    def __repr__(self):
+        return f'<Timetable {self.timetable_id} - {self.class_name}>'

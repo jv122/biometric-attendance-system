@@ -2,12 +2,16 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-from models import db, Admin, Faculty, Student, AttendanceRecord, Subject, AttendanceSession
+from models import db, Admin, Faculty, Student, AttendanceRecord, Subject, AttendanceSession, LeaveApplication, Timetable
 from face_recognition_api import encode_face_from_image, encode_face_from_array, find_matching_student, detect_faces_in_frame
 from datetime import datetime, date, time
 import datetime as dt
 import json
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 import cv2
 import numpy as np
 import pandas as pd
@@ -16,8 +20,19 @@ import base64
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database', 'attendance.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+
+# Database Configuration - PostgreSQL (Supabase) or SQLite (local)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    # Production: Use Supabase PostgreSQL
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+    print("DEBUG: Using PostgreSQL (Supabase)")
+else:
+    # Development: Use local SQLite
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database', 'attendance.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    print("DEBUG: Using SQLite (local)")
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -190,6 +205,7 @@ def add_student():
         
     if request.method == 'POST':
         try:
+            name = request.form.get('name')
             enrollment_number = request.form.get('enrollment_number')
             class_name = request.form.get('class_name')
             semester = request.form.get('semester')
@@ -278,6 +294,90 @@ def delete_student(id):
     
     flash('Student deleted successfully', 'success')
     return redirect(url_for('students'))
+
+@app.route('/bulk_upload_students', methods=['POST'])
+@login_required
+def bulk_upload_students():
+    if session.get('user_type') != 'admin':
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    if 'csv_file' not in request.files:
+        return jsonify({'success': False, 'message': 'No file uploaded'})
+    
+    file = request.files['csv_file']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No file selected'})
+    
+    if not file.filename.endswith('.csv'):
+        return jsonify({'success': False, 'message': 'File must be a CSV'})
+    
+    try:
+        import csv
+        import io
+        
+        # Read CSV
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        success_count = 0
+        errors = []
+        
+        for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 (header is row 1)
+            try:
+                # Validate required fields
+                required_fields = ['name', 'enrollment_number', 'class_name', 'semester', 'dob']
+                missing = [f for f in required_fields if not row.get(f)]
+                if missing:
+                    errors.append(f"Row {row_num}: Missing fields: {', '.join(missing)}")
+                    continue
+                
+                # Check for duplicate
+                if Student.query.filter_by(enrollment_number=row['enrollment_number']).first():
+                    errors.append(f"Row {row_num}: Student {row['enrollment_number']} already exists")
+                    continue
+                
+                # Parse date
+                try:
+                    dob = datetime.strptime(row['dob'], '%Y-%m-%d').date()
+                except ValueError:
+                    errors.append(f"Row {row_num}: Invalid date format (use YYYY-MM-DD)")
+                    continue
+                
+                # Create student without photo (can be added later)
+                password = row.get('password', 'student123')
+                student = Student(
+                    name=row['name'],
+                    enrollment_number=row['enrollment_number'],
+                    class_name=row['class_name'],
+                    semester=int(row['semester']),
+                    password=generate_password_hash(password),
+                    face_encoding='[]',  # Empty encoding, photo needed later
+                    photo_url='',  # No photo yet
+                    dob=dob,
+                    admission_date=date.today()
+                )
+                db.session.add(student)
+                success_count += 1
+                
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+        
+        db.session.commit()
+        
+        # Prepare response
+        message = f"Successfully imported {success_count} students."
+        if errors:
+            message += f" {len(errors)} errors occurred."
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'success_count': success_count,
+            'errors': errors[:10]  # Limit to first 10 errors
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error processing CSV: {str(e)}'})
 
 # --- FACULTY MANAGEMENT ---
 @app.route('/faculty')
@@ -921,6 +1021,290 @@ def defaulters():
             })
             
     return render_template('defaulters.html', defaulters=defaulter_list)
+
+# --- LEAVE MANAGEMENT ---
+@app.route('/apply_leave', methods=['GET', 'POST'])
+@login_required
+def apply_leave():
+    if session.get('user_type') != 'student':
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        subject_id = request.form.get('subject_id')
+        leave_date_str = request.form.get('leave_date')
+        reason = request.form.get('reason')
+        
+        if not all([subject_id, leave_date_str, reason]):
+            flash('All fields are required', 'error')
+            return redirect(url_for('apply_leave'))
+        
+        try:
+            leave_date = datetime.strptime(leave_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('Invalid date format', 'error')
+            return redirect(url_for('apply_leave'))
+        
+        # Check if leave already applied for this date and subject
+        existing = LeaveApplication.query.filter_by(
+            student_id=current_user.student_id,
+            subject_id=subject_id,
+            leave_date=leave_date
+        ).first()
+        
+        if existing:
+            flash('Leave already applied for this date and subject', 'warning')
+            return redirect(url_for('my_leaves'))
+        
+        # Create leave application
+        leave_app = LeaveApplication(
+            student_id=current_user.student_id,
+            subject_id=subject_id,
+            leave_date=leave_date,
+            reason=reason,
+            status='Pending'
+        )
+        db.session.add(leave_app)
+        db.session.commit()
+        
+        flash('Leave application submitted successfully', 'success')
+        return redirect(url_for('my_leaves'))
+    
+    # GET: Show form
+    subjects = Subject.query.filter_by(
+        class_name=current_user.class_name,
+        semester=current_user.semester
+    ).all()
+    return render_template('apply_leave.html', subjects=subjects)
+
+@app.route('/my_leaves')
+@login_required
+def my_leaves():
+    if session.get('user_type') != 'student':
+        return redirect(url_for('dashboard'))
+    
+    leaves = LeaveApplication.query.filter_by(
+        student_id=current_user.student_id
+    ).order_by(LeaveApplication.applied_on.desc()).all()
+    
+    return render_template('my_leaves.html', leaves=leaves)
+
+@app.route('/pending_leaves')
+@login_required
+def pending_leaves():
+    if session.get('user_type') not in ['faculty', 'admin']:
+        return redirect(url_for('dashboard'))
+    
+    # Get all pending leaves or filter by faculty's subjects
+    if session.get('user_type') == 'admin':
+        leaves = LeaveApplication.query.filter_by(status='Pending').order_by(
+            LeaveApplication.applied_on.desc()
+        ).all()
+    else:
+        # Faculty sees leaves for their subjects (simplified - show all for now)
+        leaves = LeaveApplication.query.filter_by(status='Pending').order_by(
+            LeaveApplication.applied_on.desc()
+        ).all()
+    
+    return render_template('pending_leaves.html', leaves=leaves)
+
+@app.route('/approve_leave/<int:leave_id>', methods=['POST'])
+@login_required
+def approve_leave(leave_id):
+    if session.get('user_type') not in ['faculty', 'admin']:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    leave_app = LeaveApplication.query.get_or_404(leave_id)
+    remarks = request.form.get('remarks', '')
+    
+    leave_app.status = 'Approved'
+    leave_app.approved_by = current_user.faculty_id if session.get('user_type') == 'faculty' else None
+    leave_app.approval_date = datetime.now()
+    leave_app.remarks = remarks
+    
+    # Create attendance record with "Leave" status
+    # Check if attendance record already exists
+    existing_record = AttendanceRecord.query.filter_by(
+        student_id=leave_app.student_id,
+        subject_id=leave_app.subject_id,
+        date=leave_app.leave_date
+    ).first()
+    
+    if not existing_record:
+        attendance_record = AttendanceRecord(
+            date=leave_app.leave_date,
+            time=datetime.now().time(),
+            status='Leave',
+            method='Leave',
+            student_id=leave_app.student_id,
+            faculty_id=current_user.faculty_id if session.get('user_type') == 'faculty' else 1,
+            subject_id=leave_app.subject_id
+        )
+        db.session.add(attendance_record)
+    
+    db.session.commit()
+    flash('Leave approved successfully', 'success')
+    return redirect(url_for('pending_leaves'))
+
+@app.route('/reject_leave/<int:leave_id>', methods=['POST'])
+@login_required
+def reject_leave(leave_id):
+    if session.get('user_type') not in ['faculty', 'admin']:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    leave_app = LeaveApplication.query.get_or_404(leave_id)
+    remarks = request.form.get('remarks', '')
+    
+    leave_app.status = 'Rejected'
+    leave_app.approved_by = current_user.faculty_id if session.get('user_type') == 'faculty' else None
+    leave_app.approval_date = datetime.now()
+    leave_app.remarks = remarks
+    
+    db.session.commit()
+    flash('Leave rejected', 'success')
+    return redirect(url_for('pending_leaves'))
+
+@app.route('/leave_history')
+@login_required
+def leave_history():
+    if session.get('user_type') not in ['faculty', 'admin']:
+        return redirect(url_for('dashboard'))
+    
+    # Get all leaves (approved and rejected)
+    leaves = LeaveApplication.query.filter(
+        LeaveApplication.status.in_(['Approved', 'Rejected'])
+    ).order_by(LeaveApplication.approval_date.desc()).all()
+    
+    return render_template('leave_history.html', leaves=leaves)
+
+# --- TIMETABLE MANAGEMENT ---
+@app.route('/timetable')
+@login_required
+def timetable():
+    if session.get('user_type') not in ['faculty', 'admin']:
+        return redirect(url_for('dashboard'))
+    
+    # Get all timetable slots
+    slots = Timetable.query.order_by(Timetable.day_of_week, Timetable.start_time).all()
+    
+    # Get all subjects and faculty for dropdowns
+    subjects = Subject.query.all()
+    faculty_list = Faculty.query.all()
+    
+    return render_template('timetable.html', slots=slots, subjects=subjects, faculty_list=faculty_list)
+
+@app.route('/add_timetable_slot', methods=['POST'])
+@login_required
+def add_timetable_slot():
+    if session.get('user_type') not in ['faculty', 'admin']:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    class_name = request.form.get('class_name')
+    semester = request.form.get('semester')
+    subject_id = request.form.get('subject_id')
+    faculty_id = request.form.get('faculty_id')
+    day_of_week = request.form.get('day_of_week')
+    start_time_str = request.form.get('start_time')
+    end_time_str = request.form.get('end_time')
+    room_number = request.form.get('room_number', '')
+    
+    if not all([class_name, semester, subject_id, faculty_id, day_of_week, start_time_str, end_time_str]):
+        flash('All fields except room number are required', 'error')
+        return redirect(url_for('timetable'))
+    
+    try:
+        start_time = datetime.strptime(start_time_str, '%H:%M').time()
+        end_time = datetime.strptime(end_time_str, '%H:%M').time()
+    except ValueError:
+        flash('Invalid time format', 'error')
+        return redirect(url_for('timetable'))
+    
+    # Check for conflicts
+    conflicts = Timetable.query.filter_by(
+        day_of_week=int(day_of_week)
+    ).filter(
+        db.or_(
+            db.and_(
+                Timetable.faculty_id == int(faculty_id),
+                db.or_(
+                    db.and_(Timetable.start_time <= start_time, Timetable.end_time > start_time),
+                    db.and_(Timetable.start_time < end_time, Timetable.end_time >= end_time),
+                    db.and_(Timetable.start_time >= start_time, Timetable.end_time <= end_time)
+                )
+            ),
+            db.and_(
+                Timetable.room_number == room_number,
+                room_number != '',
+                db.or_(
+                    db.and_(Timetable.start_time <= start_time, Timetable.end_time > start_time),
+                    db.and_(Timetable.start_time < end_time, Timetable.end_time >= end_time),
+                    db.and_(Timetable.start_time >= start_time, Timetable.end_time <= end_time)
+                )
+            )
+        )
+    ).first()
+    
+    if conflicts:
+        flash('Conflict detected: Faculty or room is already booked at this time', 'error')
+        return redirect(url_for('timetable'))
+    
+    # Create slot
+    slot = Timetable(
+        class_name=class_name,
+        semester=int(semester),
+        subject_id=int(subject_id),
+        faculty_id=int(faculty_id),
+        day_of_week=int(day_of_week),
+        start_time=start_time,
+        end_time=end_time,
+        room_number=room_number
+    )
+    db.session.add(slot)
+    db.session.commit()
+    
+    flash('Timetable slot added successfully', 'success')
+    return redirect(url_for('timetable'))
+
+@app.route('/delete_timetable_slot/<int:slot_id>', methods=['POST'])
+@login_required
+def delete_timetable_slot(slot_id):
+    if session.get('user_type') not in ['faculty', 'admin']:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    slot = Timetable.query.get_or_404(slot_id)
+    db.session.delete(slot)
+    db.session.commit()
+    
+    flash('Timetable slot deleted', 'success')
+    return redirect(url_for('timetable'))
+
+@app.route('/api/today_classes')
+@login_required
+def today_classes():
+    if session.get('user_type') != 'faculty':
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    # Get today's day of week (0=Monday, 6=Sunday)
+    today_day = datetime.now().weekday()
+    
+    # Get today's classes for this faculty
+    classes = Timetable.query.filter_by(
+        faculty_id=current_user.faculty_id,
+        day_of_week=today_day
+    ).order_by(Timetable.start_time).all()
+    
+    result = []
+    for cls in classes:
+        result.append({
+            'subject_id': cls.subject_id,
+            'subject_name': cls.subject.name,
+            'class_name': cls.class_name,
+            'semester': cls.semester,
+            'start_time': cls.start_time.strftime('%H:%M'),
+            'end_time': cls.end_time.strftime('%H:%M'),
+            'room_number': cls.room_number or 'N/A'
+        })
+    
+    return jsonify({'success': True, 'classes': result})
 
 if __name__ == '__main__':
     with app.app_context():

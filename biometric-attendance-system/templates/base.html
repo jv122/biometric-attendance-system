@@ -29,7 +29,11 @@
                 <span>SmartKeep</span>
             </a>
 
-            <div class="nav-links">
+            <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation">
+                <i class="fas fa-bars"></i>
+            </button>
+
+            <div class="nav-links" id="navLinks">
                 <a href="{{ url_for('dashboard') }}"
                     class="nav-link {{ 'active' if request.endpoint == 'dashboard' else '' }}">
                     <i class="fas fa-th-large" style="margin-right: 4px;"></i> Dashboard
@@ -42,6 +46,14 @@
                     class="nav-link {{ 'active' if request.endpoint == 'manual_attendance' else '' }}">
                     <i class="fas fa-pen-alt" style="margin-right: 4px;"></i> Manual
                 </a>
+                <a href="{{ url_for('pending_leaves') }}"
+                    class="nav-link {{ 'active' if request.endpoint in ['pending_leaves', 'leave_history'] else '' }}">
+                    <i class="fas fa-file-medical" style="margin-right: 4px;"></i> Leaves
+                </a>
+                <a href="{{ url_for('timetable') }}"
+                    class="nav-link {{ 'active' if request.endpoint == 'timetable' else '' }}">
+                    <i class="fas fa-calendar-week" style="margin-right: 4px;"></i> Timetable
+                </a>
                 {% endif %}
 
                 {% if session.get('user_type') == 'admin' %}
@@ -51,6 +63,14 @@
                     class="nav-link {{ 'active' if request.endpoint in ['faculty', 'add_faculty'] else '' }}">Faculty</a>
                 <a href="{{ url_for('subjects') }}"
                     class="nav-link {{ 'active' if request.endpoint == 'subjects' else '' }}">Subjects</a>
+                <a href="{{ url_for('pending_leaves') }}"
+                    class="nav-link {{ 'active' if request.endpoint in ['pending_leaves', 'leave_history'] else '' }}">
+                    <i class="fas fa-file-medical" style="margin-right: 4px;"></i> Leaves
+                </a>
+                <a href="{{ url_for('timetable') }}"
+                    class="nav-link {{ 'active' if request.endpoint == 'timetable' else '' }}">
+                    <i class="fas fa-calendar-week" style="margin-right: 4px;"></i> Timetable
+                </a>
                 {% endif %}
 
                 <a href="{{ url_for('reports') }}"
@@ -86,6 +106,21 @@
             {% block content %}{% endblock %}
         </div>
     </main>
+
+    <script>
+        // Mobile navigation toggle
+        function toggleNav() {
+            const navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('active');
+        }
+
+        // Close mobile menu when clicking a link
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                document.getElementById('navLinks').classList.remove('active');
+            });
+        });
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

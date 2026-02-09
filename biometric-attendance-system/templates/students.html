@@ -5,9 +5,50 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
     <h2 class="section-title" style="margin:0;">Student Records</h2>
-    <a href="{{ url_for('add_student') }}" class="btn btn-primary" style="width: auto;"><i
-            class="fas fa-plus icon"></i>Add
-        New Student</a>
+    <div style="display: flex; gap: 0.5rem;">
+        <button onclick="showBulkUpload()" class="btn btn-secondary" style="width: auto;">
+            <i class="fas fa-upload icon"></i>Bulk Upload
+        </button>
+        <a href="{{ url_for('add_student') }}" class="btn btn-primary" style="width: auto;">
+            <i class="fas fa-plus icon"></i>Add New Student
+        </a>
+    </div>
+</div>
+
+<!-- Bulk Upload Modal -->
+<div id="bulkUploadModal"
+    style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="card" style="max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0;">Bulk Upload Students</h3>
+            <button onclick="hideBulkUpload()"
+                style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <p style="margin-bottom: 1rem;">Upload a CSV file with student data. Students will be created without photos
+                (add photos individually later).</p>
+
+            <a href="{{ url_for('static', filename='student_upload_template.csv') }}" download class="btn btn-secondary"
+                style="width: 100%; margin-bottom: 1rem;">
+                <i class="fas fa-download"></i> Download CSV Template
+            </a>
+
+            <div class="form-group">
+                <label class="form-label">Select CSV File</label>
+                <input type="file" id="csvFile" accept=".csv" class="form-control">
+            </div>
+
+            <button onclick="uploadCSV()" class="btn btn-primary" style="width: 100%;">
+                <i class="fas fa-upload"></i> Upload Students
+            </button>
+        </div>
+
+        <div id="uploadResults" style="display: none;">
+            <h4>Upload Results</h4>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -45,4 +86,68 @@
         </tbody>
     </table>
 </div>
+
+<script>
+    function showBulkUpload() {
+        document.getElementById('bulkUploadModal').style.display = 'flex';
+    }
+
+    function hideBulkUpload() {
+        document.getElementById('bulkUploadModal').style.display = 'none';
+        document.getElementById('uploadResults').style.display = 'none';
+        document.getElementById('csvFile').value = '';
+    }
+
+    async function uploadCSV() {
+        const fileInput = document.getElementById('csvFile');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert('Please select a CSV file');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('csv_file', file);
+
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+        try {
+            const response = await fetch('/bulk_upload_students', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            // Show results
+            const resultsDiv = document.getElementById('uploadResults');
+            const contentDiv = document.getElementById('resultsContent');
+
+            let html = `<div class="alert alert-${result.success ? 'success' : 'error'}">${result.message}</div>`;
+
+            if (result.errors && result.errors.length > 0) {
+                html += '<h5>Errors:</h5><ul>';
+                result.errors.forEach(error => {
+                    html += `<li style="color: var(--error); margin-bottom: 0.5rem;">${error}</li>`;
+                });
+                html += '</ul>';
+            }
+
+            if (result.success_count > 0) {
+                html += '<button onclick="location.reload()" class="btn btn-primary" style="margin-top: 1rem;">Refresh Page</button>';
+            }
+
+            contentDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+
+        } catch (error) {
+            alert('Error uploading file: ' + error.message);
+        }
+    }
+</script>
 {% endblock %}
