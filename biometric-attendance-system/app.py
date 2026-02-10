@@ -9,6 +9,8 @@ import datetime as dt
 import json
 import os
 from dotenv import load_dotenv
+from sqlalchemy import or_, and_
+import logging
 
 # Load environment variables
 load_dotenv()
@@ -18,8 +20,19 @@ import pandas as pd
 from io import BytesIO
 import base64
 
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('app.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
 
 # Database Configuration - PostgreSQL (Supabase) or SQLite (local)
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -76,6 +89,21 @@ def load_user(user_id):
     elif user_id.startswith('student_'):
         return Student.query.get(int(user_id.split('_')[1]))
     return None
+
+# Custom Error Handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'message': 'Resource not found'}), 404
+    return render_template('login.html', error='Page not found'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    logger.error(f'Internal server error: {error}')
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+    return render_template('login.html', error='An error occurred. Please try again.'), 500
 
 # --- PUBLIC ROUTES ---
 @app.route('/')
@@ -237,19 +265,13 @@ def add_student():
             try:
                 face_encoding = encode_face_from_image(photo_path)
                 if face_encoding is None:
-                    # Optional: Retry with detailed error or fallback
-                    # For now, strict check
-                    flash('No face detected in photo', 'error')
-                    pass
-                    # return redirect(url_for('add_student')) # Allow adding without face for testing?
-                    # Let's enforce it for biometric system
+                    flash('No face detected in photo. Please upload a clear photo with visible face.', 'error')
+                    return redirect(url_for('add_student'))
             except ImportError as ie:
                 flash(f'Error processing image: {str(ie)}', 'error')
                 return redirect(url_for('add_student'))
             
-            if face_encoding is None:
-                 face_encoding = [] # Prevent JSON error if allowed to proceed
-                 flash('Warning: No face detected. Verification will fail.', 'warning')
+
 
             student = Student(
                 name=name,
@@ -268,6 +290,7 @@ def add_student():
             flash('Student added successfully', 'success')
             return redirect(url_for('students'))
         except Exception as e:
+            db.session.rollback()
             flash(f'Error: {str(e)}', 'error')
             
     return render_template('add_student.html')
@@ -714,7 +737,8 @@ def recognize_face():
             is_live = face['is_smiling']
             
             best_match = None
-            best_distance = 0.40 # Tolerance (Stricter: 0.40)
+            best_distance = 1.0  # Start with worst possible distance
+            tolerance = 0.45  # Standardized tolerance threshold
             
             # Find best match from loaded students
             import face_recognition
@@ -729,7 +753,8 @@ def recognize_face():
                         best_distance = dist
                         best_match = entry['student']
             
-            if best_match:
+            # Check if best match meets threshold
+            if best_match and best_distance < tolerance:
                 print(f"MATCH FOUND: {best_match.name} with distance {best_distance}")
                 
                 # LIVENESS CHECK
@@ -866,6 +891,16 @@ def get_attendance():
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     class_name = request.args.get('class_name')
+    
+    # Validate date range
+    if start_date and end_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+            if start > end:
+                return jsonify({'success': False, 'error': 'Start date must be before end date'})
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid date format'})
     
     query = db.session.query(
         AttendanceRecord, Student, Subject, Faculty
@@ -1130,16 +1165,30 @@ def approve_leave(leave_id):
     ).first()
     
     if not existing_record:
-        attendance_record = AttendanceRecord(
-            date=leave_app.leave_date,
-            time=datetime.now().time(),
-            status='Leave',
-            method='Leave',
-            student_id=leave_app.student_id,
-            faculty_id=current_user.faculty_id if session.get('user_type') == 'faculty' else 1,
-            subject_id=leave_app.subject_id
-        )
-        db.session.add(attendance_record)
+        # Get faculty_id properly based on user type
+        if session.get('user_type') == 'faculty':
+            faculty_id_for_record = current_user.faculty_id
+        else:
+            # Admin approval - find faculty teaching this subject from timetable
+            timetable_entry = Timetable.query.filter_by(subject_id=leave_app.subject_id).first()
+            faculty_id_for_record = timetable_entry.faculty_id if timetable_entry else None
+            
+            if faculty_id_for_record is None:
+                # Fallback: use first available faculty
+                first_faculty = Faculty.query.first()
+                faculty_id_for_record = first_faculty.faculty_id if first_faculty else None
+        
+        if faculty_id_for_record:
+            attendance_record = AttendanceRecord(
+                date=leave_app.leave_date,
+                time=datetime.now().time(),
+                status='Leave',
+                method='Leave',
+                student_id=leave_app.student_id,
+                faculty_id=faculty_id_for_record,
+                subject_id=leave_app.subject_id
+            )
+            db.session.add(attendance_record)
     
     db.session.commit()
     flash('Leave approved successfully', 'success')
@@ -1222,22 +1271,22 @@ def add_timetable_slot():
     conflicts = Timetable.query.filter_by(
         day_of_week=int(day_of_week)
     ).filter(
-        db.or_(
-            db.and_(
+        or_(
+            and_(
                 Timetable.faculty_id == int(faculty_id),
-                db.or_(
-                    db.and_(Timetable.start_time <= start_time, Timetable.end_time > start_time),
-                    db.and_(Timetable.start_time < end_time, Timetable.end_time >= end_time),
-                    db.and_(Timetable.start_time >= start_time, Timetable.end_time <= end_time)
+                or_(
+                    and_(Timetable.start_time <= start_time, Timetable.end_time > start_time),
+                    and_(Timetable.start_time < end_time, Timetable.end_time >= end_time),
+                    and_(Timetable.start_time >= start_time, Timetable.end_time <= end_time)
                 )
             ),
-            db.and_(
+            and_(
                 Timetable.room_number == room_number,
                 room_number != '',
-                db.or_(
-                    db.and_(Timetable.start_time <= start_time, Timetable.end_time > start_time),
-                    db.and_(Timetable.start_time < end_time, Timetable.end_time >= end_time),
-                    db.and_(Timetable.start_time >= start_time, Timetable.end_time <= end_time)
+                or_(
+                    and_(Timetable.start_time <= start_time, Timetable.end_time > start_time),
+                    and_(Timetable.start_time < end_time, Timetable.end_time >= end_time),
+                    and_(Timetable.start_time >= start_time, Timetable.end_time <= end_time)
                 )
             )
         )

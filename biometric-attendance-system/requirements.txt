@@ -1,6 +1,7 @@
 Flask
 Flask-SQLAlchemy
 Flask-Login
+Flask-WTF
 Werkzeug
 opencv-python
 face-recognition
@@ -8,3 +9,6 @@ numpy
 Pillow
 pandas
 openpyxl
+python-dotenv
+gunicorn
+psycopg2-binary

@@ -4,9 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -23,10 +20,28 @@ wheels/
 .installed.cfg
 *.egg
 
+# Virtual Environment
+venv/
+.venv/
+ENV/
+env/
+
+# Flask
+instance/
+.webassets-cache
+
 # Database
-database/*.db
-database/*.sqlite
-database/*.sqlite3
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+app.log
 
 # Uploads
 static/uploads/*
@@ -43,9 +58,7 @@ static/uploads/*
 .DS_Store
 Thumbs.db
 
-# Environment variables
-.env
-.env.local
-
-# Logs
-*.log
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
