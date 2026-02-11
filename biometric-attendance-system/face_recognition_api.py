@@ -57,8 +57,6 @@ def encode_face_from_array(image_array):
             return None
     except Exception as e:
         print(f"Error encoding face from array: {e}")
-    except Exception as e:
-        print(f"Error encoding face from array: {e}")
         return None
 
 def get_all_face_encodings(image_array):
