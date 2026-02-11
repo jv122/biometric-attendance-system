@@ -207,6 +207,7 @@ function endSession() {
         })
         .then(data => {
             if (data.success) {
+                currentSessionId = null; // Prevent camera restart loop
                 updateUIState('Ended');
                 showResult('Session Ended. Absentees Marked.', 'info');
             } else {

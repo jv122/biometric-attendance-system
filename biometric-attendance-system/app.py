@@ -253,15 +253,16 @@ def dashboard():
     counts = []
     for i in range(6, -1, -1):
         d = date.today() - dt.timedelta(days=i)
-        c = AttendanceRecord.query.filter_by(date=d).count()
+        # Count present records for this day
+        # Note: This is a simple count of records, might need refinement for actual 'attendance'
+        c = AttendanceRecord.query.filter(AttendanceRecord.date == d, AttendanceRecord.status == 'Present').count()
         dates.append(d.strftime('%d %b'))
         counts.append(c)
         
     # Chart Data: Today's Status
     present = today_attendance
-    # Approximate absent (Total Students * Total Lectures Today - Present)
-    # This is complex to get exact without schedule, so we'll use a simplified metric:
-    # Present vs Registered Students (assuming 1 lecture/student/day for demo)
+    # Approximate absent (Total Students - Present)
+    # This assumes all students should be present.
     absent = max(0, student_count - present) 
     
     return render_template('dashboard.html', 
@@ -273,8 +274,8 @@ def dashboard():
                              'today': today_attendance
                          },
                          chart_data={
-                             'dates': json.dumps(dates),
-                             'counts': json.dumps(counts),
+                             'dates': dates,  # Pass as list, Jinja will handle safe json dump if needed or we do it there
+                             'counts': counts,
                              'present': present,
                              'absent': absent
                          })
@@ -1005,7 +1006,7 @@ def get_attendance():
     for r, s, sub, f in records:
         result.append({
             'date': r.date.strftime('%Y-%m-%d'),
-            'time': str(r.time),
+            'time': r.time.strftime('%H:%M') if r.time else '-',
             'lecture_number': '-', # Not tracked in DB
             'student_name': s.name,
             'enrollment_number': s.enrollment_number,

@@ -147,41 +147,48 @@
     Chart.defaults.font.family = "'Inter', sans-serif";
     Chart.defaults.color = '#64748B';
 
+    // Parse data from Jinja (if passed as strings) or use directly
+    const trendDates = {{ chart_data.dates | tojson }};
+    const trendCounts = {{ chart_data.counts | tojson }};
+    const presentCount = {{ chart_data.present }};
+    const absentCount = {{ chart_data.absent }};
+
     new Chart(trendCtx, {
         type: 'line',
         data: {
-            labels: {{ chart_data.dates | safe }},
-        datasets: [{
-            label: 'Attendance Count',
-            data: {{ chart_data.counts | safe }},
-        borderColor: '#4F46E5', // Primary
-        backgroundColor: 'rgba(79, 70, 229, 0.1)',
-        borderWidth: 2,
-        tension: 0.4,
-        fill: true,
-        pointBackgroundColor: '#FFFFFF',
-        pointBorderColor: '#4F46E5',
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6
+            labels: trendDates,
+            datasets: [{
+                label: 'Attendance Count',
+                data: trendCounts,
+                borderColor: '#4F46E5', // Primary
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+                pointBackgroundColor: '#FFFFFF',
+                pointBorderColor: '#4F46E5',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6
             }]
         },
         options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                grid: { borderDash: [4, 4], color: '#E2E8F0' }
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
             },
-            x: {
-                grid: { display: false }
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 },
+                    grid: { borderDash: [4, 4], color: '#E2E8F0' }
+                },
+                x: {
+                    grid: { display: false }
+                }
             }
         }
-    }
     });
 
     new Chart(statusCtx, {
@@ -189,19 +196,23 @@
         data: {
             labels: ['Present', 'Absent/Remaining'],
             datasets: [{
-                data: [{{ chart_data.present }}, {{ chart_data.absent }}],
-        backgroundColor: ['#10B981', '#F1F5F9'], // Success, Muted
-        borderWidth: 0,
-        hoverOffset: 4
-    }]
+                data: [presentCount, absentCount],
+                backgroundColor: ['#10B981', '#F1F5F9'], // Success, Muted
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
         },
         options: {
-        responsive: true,
-        cutout: '75%',
-        plugins: {
-            legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '75%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { usePointStyle: true, padding: 20, font: { size: 12 } }
+                }
+            }
         }
-    }
     });
 </script>
 {% endblock %}
