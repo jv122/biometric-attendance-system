@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
 # Copy everything first
 COPY . .
 
+# List contents to debug
+RUN ls -la /app/
+
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
