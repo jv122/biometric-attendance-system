@@ -103,6 +103,68 @@ def load_user(user_id):
         return Student.query.get(int(user_id.split('_')[1]))
     return None
 
+
+# --- Admin helpers (safe) ---
+def create_default_accounts():
+    """Create default admin, faculty and some subjects if they don't exist.
+    This is safer than running a full init (no drop_all).
+    """
+    from werkzeug.security import generate_password_hash
+    from models import Subject
+
+    with app.app_context():
+        created = []
+        if not Admin.query.filter_by(email='admin@college.edu').first():
+            admin = Admin(
+                name='System Admin',
+                email='admin@college.edu',
+                password=generate_password_hash('admin123'),
+                contact_no=1234567890
+            )
+            db.session.add(admin)
+            created.append('admin')
+
+        if not Faculty.query.filter_by(email='faculty@college.edu').first():
+            faculty = Faculty(
+                name='Dr. Smith',
+                email='faculty@college.edu',
+                password=generate_password_hash('faculty123'),
+                contact_no=9876543210
+            )
+            db.session.add(faculty)
+            created.append('faculty')
+
+        # Ensure some default subjects
+        subjects = [
+            ('Mathematics-I','FY',1),
+            ('Physics-I','FY',1),
+            ('Computer Science-I','FY',2),
+        ]
+        for name, class_name, sem in subjects:
+            existing = Subject.query.filter_by(name=name, class_name=class_name, semester=sem).first()
+            if not existing:
+                db.session.add(Subject(name=name, class_name=class_name, semester=sem))
+                created.append(f'subject:{name}')
+
+        if created:
+            db.session.commit()
+        return created
+
+
+# Protected HTTP endpoint to create defaults when you cannot run commands on the host
+@app.route('/internal/create-defaults', methods=['POST'])
+def http_create_defaults():
+    token = request.args.get('token') or request.headers.get('X-Init-Token')
+    if not token or token != os.environ.get('INIT_DB_TOKEN'):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+    try:
+        created = create_default_accounts()
+        return jsonify({'success': True, 'created': created}), 200
+    except Exception as e:
+        logger.exception('Error creating default accounts')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # Custom Error Handlers
 @app.errorhandler(404)
 def not_found_error(error):
