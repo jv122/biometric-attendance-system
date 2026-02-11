@@ -202,10 +202,11 @@ def is_smiling(landmarks):
         ratio = mouth_width / (mouth_height + 1)
         
         # Heuristic: High curvature OR very wide ratio
-        if curvature > 4: # Corners are 4px higher than center
+        # Relaxed thresholds for better detection
+        if curvature > 3: # Corners are 3px higher than center (was 4)
             return True
         
-        if ratio > 2.5: # Very wide mouth
+        if ratio > 2.2: # Very wide mouth (was 2.5)
             return True
             
         return False

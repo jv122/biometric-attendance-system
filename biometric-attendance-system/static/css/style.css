@@ -318,12 +318,14 @@ ul {
     overflow: hidden;
 }
 
-.table {
+.table,
+.data-table {
     width: 100%;
     border-collapse: collapse;
 }
 
-.table th {
+.table th,
+.data-table th {
     background: var(--secondary);
     padding: 1rem 1.5rem;
     text-align: left;
@@ -335,20 +337,29 @@ ul {
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.table td {
-    padding: 1rem 1.5rem;
+.table td,
+.data-table td {
+    padding: 0.85rem 1.5rem;
     border-bottom: 1px solid #F1F5F9;
     color: var(--text-main);
     font-size: 0.95rem;
 }
 
-.table tr:last-child td {
+.table tr:last-child td,
+.data-table tr:last-child td {
     border-bottom: none;
 }
 
-.table tr:hover td {
+.table tbody tr:hover td,
+.data-table tbody tr:hover td {
     background: #f9fdfa;
     /* Very subtle green tint */
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* --- Alerts --- */
@@ -376,6 +387,66 @@ ul {
     border: 1px solid #f5c6cb;
 }
 
+/* Badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.badge-success {
+    background: rgba(40, 167, 69, 0.12);
+    /* based on --success */
+    color: var(--success);
+}
+
+.badge-warning {
+    background: rgba(255, 193, 7, 0.15);
+    /* based on --warning */
+    color: #92400e;
+}
+
+.badge-danger {
+    background: rgba(220, 53, 69, 0.12);
+    /* based on --error */
+    color: var(--error);
+}
+
+.badge-muted {
+    background: rgba(148, 163, 184, 0.16);
+    color: var(--text-muted);
+}
+
+/* Legacy inline message helpers using same palette as alerts */
+.success-message,
+.error-message {
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.success-message {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
 /* --- Animations --- */
 @keyframes slideDown {
     from {
@@ -397,6 +468,61 @@ ul {
     to {
         opacity: 1;
     }
+}
+
+/* --- Layout & Page Sections --- */
+
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.section-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.section-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.filter-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem;
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.form-section {
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    padding: 1.75rem 1.5rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.form-section h2,
+.form-section h3 {
+    margin-bottom: 1.25rem;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.text-center {
+    text-align: center;
 }
 
 /* --- Specific Page Styles --- */

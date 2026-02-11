@@ -3,11 +3,12 @@
 {% block title %}Dashboard - SmartKeep{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div style="margin-bottom: 2rem;">
-        <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--text-main);">Dashboard</h2>
-        <p style="color: var(--text-muted);">Welcome back, {{ user.name }}</p>
+<div class="page-header">
+    <div>
+        <h2 class="section-title">Dashboard</h2>
+        <p style="color: var(--text-muted); margin-top: 0.25rem;">Welcome back, {{ user.name }}</p>
     </div>
+</div>
 
     <div class="dashboard-grid">
         <!-- Profile Card -->

@@ -3,11 +3,12 @@
 {% block title %}Mark Attendance - SmartKeep{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div style="margin-bottom: 2rem;">
-        <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--text-main);">Face Recognition Attendance</h2>
-        <p style="color: var(--text-muted);">Select a class and subject to begin scanning.</p>
+<div class="page-header">
+    <div>
+        <h2 class="section-title">Face Recognition Attendance</h2>
+        <p style="color: var(--text-muted); margin-top: 0.25rem;">Select a class and subject to begin scanning.</p>
     </div>
+</div>
 
     <div class="dashboard-grid" style="grid-template-columns: 3fr 2fr; align-items: start;">
 
@@ -211,8 +212,16 @@
             return;
         }
 
-        fetch(`/api/get_subjects/${className}?semester=${semester}`)
-            .then(res => res.json())
+        fetch(`/api/get_subjects/${className}?semester=${semester}`, { credentials: 'include' })
+            .then(res => {
+                if (res.status === 401 || res.status === 403 || res.url.includes('/login')) {
+                    throw new Error('Session expired');
+                }
+                if (!res.ok) {
+                    return res.text().then(text => { throw new Error('Server Error: ' + res.status + ' '); });
+                }
+                return res.json();
+            })
             .then(data => {
                 subjectSelect.innerHTML = '<option value="">-- Choose Subject --</option>';
                 data.forEach(sub => {
@@ -225,7 +234,13 @@
             })
             .catch(err => {
                 console.error(err);
-                subjectSelect.innerHTML = '<option value="">Error loading subjects</option>';
+                if (err.message === 'Session expired') {
+                    alert('Session expired. Please login again.');
+                    window.location.reload();
+                } else {
+                    subjectSelect.innerHTML = '<option value="">Error loading subjects</option>';
+                    alert('Failed to load subjects: ' + err.message);
+                }
             });
     }
 </script>

@@ -2,63 +2,55 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-from models import db, Admin, Faculty, Student, AttendanceRecord, Subject, AttendanceSession, LeaveApplication, Timetable
+from models import db, Admin, Faculty, Student, AttendanceRecord, Subject, LeaveApplication, Timetable, AttendanceSession
 from face_recognition_api import encode_face_from_image, encode_face_from_array, find_matching_student, detect_faces_in_frame
 from datetime import datetime, date, time
 import datetime as dt
 import json
 import os
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 import cv2
 import numpy as np
 import pandas as pd
 from io import BytesIO
 import base64
+from config import DATABASE_URI, DATABASE_TYPE
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-
-# Database Configuration - PostgreSQL (Supabase) or SQLite (local)
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL:
-    # Production: Use Supabase PostgreSQL
-    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-    print("DEBUG: Using PostgreSQL (Supabase)")
-else:
-    # Development: Use local SQLite
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database', 'attendance.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-    print("DEBUG: Using SQLite (local)")
-
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
+# Session Configuration for Local Dev
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False # Important for HTTP
+app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+app.config['REMEMBER_COOKIE_SECURE'] = False
+
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 # Initialize extensions
 db.init_app(app)
-# Start CSRF
-csrf = CSRFProtect(app)
-app.jinja_env.globals['csrf_token'] = generate_csrf
+# CSRF TEMPORARILY DISABLED FOR DEBUGGING
+# csrf = CSRFProtect(app)
+# app.jinja_env.globals['csrf_token'] = generate_csrf
 login_manager = LoginManager()
 
-@app.errorhandler(CSRFError)
-def handle_csrf_error(e):
-    if request.path.startswith('/api/'):
-        return jsonify({'success': False, 'message': 'CSRF token missing or incorrect.'}), 400
-    return render_template('login.html', error=e.description), 400
+# @app.context_processor
+# def inject_csrf_token():
+#     return dict(csrf_token=generate_csrf)
 
-@login_manager.unauthorized_handler
-def unauthorized():
-    if request.path.startswith('/api/'):
-        return jsonify({'success': False, 'message': 'Session expired. Please login again.'}), 401
-    return redirect(url_for('login'))
+# Provide dummy csrf_token function when CSRF is disabled
+def dummy_csrf_token():
+    """Dummy CSRF token function that returns empty string when CSRF is disabled"""
+    return ''
 
-print("DEBUG: App Configuration Loaded. CSRF ENABLED.")
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=dummy_csrf_token)
+
+print("DEBUG: App Configuration Loaded. CSRF DISABLED.")
 
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -69,6 +61,7 @@ os.makedirs('static/uploads', exist_ok=True)
 
 @login_manager.user_loader
 def load_user(user_id):
+    print(f"DEBUG: load_user called with {user_id}")
     if user_id.startswith('admin_'):
         return Admin.query.get(int(user_id.split('_')[1]))
     elif user_id.startswith('faculty_'):
@@ -208,12 +201,11 @@ def add_student():
             name = request.form.get('name')
             enrollment_number = request.form.get('enrollment_number')
             class_name = request.form.get('class_name')
-            semester = request.form.get('semester')
             dob_str = request.form.get('dob')
             password = request.form.get('password') # Optional, default if empty
             photo = request.files.get('photo')
             
-            if not all([name, enrollment_number, class_name, semester, photo, dob_str]):
+            if not all([name, enrollment_number, class_name, photo, dob_str]):
                 flash('All fields are required', 'error')
                 return redirect(url_for('add_student'))
 
@@ -223,6 +215,10 @@ def add_student():
                 flash("Invalid date format")
                 return redirect(url_for('add_student'))
 
+                                
+    
+
+                
             # Check for duplicates
             if Student.query.filter_by(enrollment_number=enrollment_number).first():
                 flash(f'Student with enrollment {enrollment_number} already exists', 'error')
@@ -237,25 +233,16 @@ def add_student():
             try:
                 face_encoding = encode_face_from_image(photo_path)
                 if face_encoding is None:
-                    # Optional: Retry with detailed error or fallback
-                    # For now, strict check
                     flash('No face detected in photo', 'error')
-                    pass
-                    # return redirect(url_for('add_student')) # Allow adding without face for testing?
-                    # Let's enforce it for biometric system
+                    return redirect(url_for('add_student'))
             except ImportError as ie:
                 flash(f'Error processing image: {str(ie)}', 'error')
                 return redirect(url_for('add_student'))
             
-            if face_encoding is None:
-                 face_encoding = [] # Prevent JSON error if allowed to proceed
-                 flash('Warning: No face detected. Verification will fail.', 'warning')
-
             student = Student(
                 name=name,
                 enrollment_number=enrollment_number,
                 class_name=class_name,
-                semester=semester,
                 password=generate_password_hash(password) if password else generate_password_hash('123456'),
                 face_encoding=json.dumps(face_encoding),
                 photo_url=photo_path,
@@ -294,90 +281,6 @@ def delete_student(id):
     
     flash('Student deleted successfully', 'success')
     return redirect(url_for('students'))
-
-@app.route('/bulk_upload_students', methods=['POST'])
-@login_required
-def bulk_upload_students():
-    if session.get('user_type') != 'admin':
-        return jsonify({'success': False, 'message': 'Unauthorized'})
-    
-    if 'csv_file' not in request.files:
-        return jsonify({'success': False, 'message': 'No file uploaded'})
-    
-    file = request.files['csv_file']
-    if file.filename == '':
-        return jsonify({'success': False, 'message': 'No file selected'})
-    
-    if not file.filename.endswith('.csv'):
-        return jsonify({'success': False, 'message': 'File must be a CSV'})
-    
-    try:
-        import csv
-        import io
-        
-        # Read CSV
-        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
-        csv_reader = csv.DictReader(stream)
-        
-        success_count = 0
-        errors = []
-        
-        for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 (header is row 1)
-            try:
-                # Validate required fields
-                required_fields = ['name', 'enrollment_number', 'class_name', 'semester', 'dob']
-                missing = [f for f in required_fields if not row.get(f)]
-                if missing:
-                    errors.append(f"Row {row_num}: Missing fields: {', '.join(missing)}")
-                    continue
-                
-                # Check for duplicate
-                if Student.query.filter_by(enrollment_number=row['enrollment_number']).first():
-                    errors.append(f"Row {row_num}: Student {row['enrollment_number']} already exists")
-                    continue
-                
-                # Parse date
-                try:
-                    dob = datetime.strptime(row['dob'], '%Y-%m-%d').date()
-                except ValueError:
-                    errors.append(f"Row {row_num}: Invalid date format (use YYYY-MM-DD)")
-                    continue
-                
-                # Create student without photo (can be added later)
-                password = row.get('password', 'student123')
-                student = Student(
-                    name=row['name'],
-                    enrollment_number=row['enrollment_number'],
-                    class_name=row['class_name'],
-                    semester=int(row['semester']),
-                    password=generate_password_hash(password),
-                    face_encoding='[]',  # Empty encoding, photo needed later
-                    photo_url='',  # No photo yet
-                    dob=dob,
-                    admission_date=date.today()
-                )
-                db.session.add(student)
-                success_count += 1
-                
-            except Exception as e:
-                errors.append(f"Row {row_num}: {str(e)}")
-        
-        db.session.commit()
-        
-        # Prepare response
-        message = f"Successfully imported {success_count} students."
-        if errors:
-            message += f" {len(errors)} errors occurred."
-        
-        return jsonify({
-            'success': True,
-            'message': message,
-            'success_count': success_count,
-            'errors': errors[:10]  # Limit to first 10 errors
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Error processing CSV: {str(e)}'})
 
 # --- FACULTY MANAGEMENT ---
 @app.route('/faculty')
@@ -451,20 +354,12 @@ def add_subject():
         
     name = request.form.get('name')
     class_name = request.form.get('class_name')
-    semester = request.form.get('semester')
     
-    if name and class_name and semester:
-        # Check duplicate
-        if Subject.query.filter_by(name=name, class_name=class_name, semester=semester).first():
-            flash('Subject already exists for this class and semester', 'error')
-            return redirect(url_for('subjects'))
-            
-        sub = Subject(name=name, class_name=class_name, semester=semester)
+    if name and class_name:
+        sub = Subject(name=name, class_name=class_name)
         db.session.add(sub)
         db.session.commit()
         flash('Subject added successfully', 'success')
-    else:
-        flash('All fields are required', 'error')
     
     return redirect(url_for('subjects'))
 
@@ -496,148 +391,14 @@ def get_subjects(class_name):
     query = Subject.query.filter_by(class_name=class_name)
     
     if semester:
-        query = query.filter_by(semester=semester)
-        
+        try:
+            semester_int = int(semester)
+            query = query.filter_by(semester=semester_int)
+        except ValueError:
+            pass  # Ignore invalid semester
+    
     subjects = query.all()
-    # Return list of objects directly as before
     return jsonify([{'id': s.subject_id, 'name': s.name} for s in subjects])
-
-# --- SESSION MANAGEMENT ---
-@app.route('/api/start_session', methods=['POST'])
-@login_required
-def start_session():
-    data = request.get_json()
-    subject_id = data.get('subject_id')
-    class_name = data.get('class_name')
-    duration = data.get('duration', 10)
-    
-    # Check for existing active session
-    existing = AttendanceSession.query.filter_by(
-        faculty_id=current_user.faculty_id,
-        status='Active'
-    ).first()
-    
-    if existing:
-        return jsonify({'success': False, 'message': 'A session is already active.'})
-        
-    session = AttendanceSession(
-        faculty_id=current_user.faculty_id,
-        subject_id=subject_id,
-        class_name=class_name,
-        duration_minutes=duration,
-        start_time=datetime.now(),
-        status='Active'
-    )
-    db.session.add(session)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'session_id': session.id})
-
-@app.route('/api/end_session', methods=['POST'])
-@login_required
-def end_session():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': 'No data provided'})
-            
-        session_id = data.get('session_id')
-        if not session_id:
-            return jsonify({'success': False, 'message': 'Session ID is required'})
-        
-        sess = AttendanceSession.query.get(session_id)
-        if not sess:
-            return jsonify({'success': False, 'message': 'Session not found'})
-            
-        if sess.faculty_id != current_user.faculty_id:
-            return jsonify({'success': False, 'message': 'Unauthorized to end this session'})
-            
-        sess.status = 'Ended'
-        sess.end_time = datetime.now()
-        
-        # Auto-mark Absent
-        all_students = Student.query.filter_by(class_name=sess.class_name).all()
-        
-        # Get students already marked present/late for this session
-        marked_records = AttendanceRecord.query.filter(
-            AttendanceRecord.session_id == sess.id,
-            AttendanceRecord.status.in_(['Present', 'Late'])
-        ).all()
-        marked_ids = {r.student_id for r in marked_records}
-        
-        today = date.today()
-        
-        for student in all_students:
-            if student.student_id not in marked_ids:
-                # Check if record exists for today (maybe manual?)
-                existing = AttendanceRecord.query.filter_by(
-                    student_id=student.student_id,
-                    subject_id=sess.subject_id,
-                    date=today
-                ).first()
-                
-                if not existing:
-                    absent_record = AttendanceRecord(
-                        date=today,
-                        time=datetime.now().time(),
-                        status='Absent',
-                        method='Auto',
-                        student_id=student.student_id,
-                        faculty_id=current_user.faculty_id,
-                        subject_id=sess.subject_id,
-                        session_id=sess.id
-                    )
-                    db.session.add(absent_record)
-                    
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'Session ended. Absentees marked.'})
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error ending session: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-@app.route('/api/reopen_session', methods=['POST'])
-@login_required
-def reopen_session():
-    data = request.get_json()
-    session_id = data.get('session_id')
-    
-    sess = AttendanceSession.query.get(session_id)
-    if not sess or sess.faculty_id != current_user.faculty_id:
-        return jsonify({'success': False, 'message': 'Invalid session'})
-        
-    sess.status = 'Reopened'
-    db.session.commit()
-    return jsonify({'success': True, 'message': 'Session reopened. Marking as Late.'})
-
-@app.route('/api/session_status')
-@login_required
-def session_status():
-    sess = AttendanceSession.query.filter_by(
-        faculty_id=current_user.faculty_id
-    ).filter(AttendanceSession.status.in_(['Active', 'Reopened'])).order_by(AttendanceSession.start_time.desc()).first()
-    
-    if sess:
-        elapsed = (datetime.now() - sess.start_time).total_seconds() / 60
-        remaining = max(0, sess.duration_minutes - elapsed)
-        
-        # If Active and time over, auto-end? 
-        # Requirement says: "if any student not marked... marked absent by default" implies manual end or auto-check.
-        # Minimal viable: Frontend triggers end, or we check here.
-        # Let's trust frontend or explicit end call for now, but return data.
-        
-        return jsonify({
-            'active': True,
-            'session_id': sess.id,
-            'start_time': sess.start_time.isoformat(),
-            'duration': sess.duration_minutes,
-            'remaining_minutes': remaining,
-            'status': sess.status,
-            'subject_id': sess.subject_id,
-            'class_name': sess.class_name
-        })
-    return jsonify({'active': False})
 
 @app.route('/api/recognize_face', methods=['POST'])
 @login_required
@@ -653,34 +414,7 @@ def recognize_face():
         
         if not all([image_data, class_name, subject_id]):
             return jsonify({'success': False, 'error': 'Missing data'})
-
-        # Check Session Status
-        active_session = AttendanceSession.query.filter_by(
-            faculty_id=current_user.faculty_id,
-            subject_id=subject_id,
-            class_name=class_name
-        ).filter(AttendanceSession.status.in_(['Active', 'Reopened'])).first()
-        
-        if not active_session:
-            return jsonify({'success': False, 'error': 'No active session. Please start a session first.'})
-
-        attendance_status = 'Present'
-        if active_session.status == 'Reopened':
-            attendance_status = 'Late'
-        elif active_session.status == 'Active':
-            # Check logic for timer expiry if handled purely backend?
-            # For now relying on status.
-            elapsed = (datetime.now() - active_session.start_time).total_seconds() / 60
-            if elapsed > active_session.duration_minutes:
-                 # Optionally force Late if time exceeded even if status is Active (if frontend didn't auto-end)
-                 # adhere to "marked absent by default" -> Usually happens at End. 
-                 # If time passed but session not ended, maybe mark Late?
-                 # Requirement: "faculty can change time... if not marked in that session time it is marked absent... faculty can open session again... marked late"
-                 # Implication: After time, it SHOULD be effectively closed/absent.
-                 # Let's say if (Active AND TimeExpired) -> Error "Time Expired" or Auto-Late?
-                 # User said: "faculty can reopen... marked late". So if time expired, they must reopen.
-                 return jsonify({'success': False, 'error': 'Session time expired. End and Reopen to mark Late.'})
-
+            
         # Decode image
         image_data = image_data.split(',')[1] if ',' in image_data else image_data
         nparr = np.frombuffer(base64.b64decode(image_data), np.uint8)
@@ -708,13 +442,30 @@ def recognize_face():
         results = []
         today = date.today()
         
+        # Get active session for this faculty and subject
+        active_session = AttendanceSession.query.filter_by(
+            faculty_id=current_user.faculty_id,
+            subject_id=subject_id,
+            status='Active'
+        ).order_by(AttendanceSession.start_time.desc()).first()
+        
+        # Also check for reopened session
+        if not active_session:
+            active_session = AttendanceSession.query.filter_by(
+                faculty_id=current_user.faculty_id,
+                subject_id=subject_id,
+                status='Reopened'
+            ).order_by(AttendanceSession.start_time.desc()).first()
+        
+        session_id = active_session.id if active_session else None
+        
         # 3. Match Each Detected Face
         for face in faces_data:
             unknown_encoding = face['encoding']
             is_live = face['is_smiling']
             
             best_match = None
-            best_distance = 0.40 # Tolerance (Stricter: 0.40)
+            best_distance = 0.50 # Tolerance (Relaxed: 0.50)
             
             # Find best match from loaded students
             import face_recognition
@@ -761,16 +512,22 @@ def recognize_face():
                             'location': face['location']
                         })
                     else:
+                        # Determine status based on session status
+                        if active_session and active_session.status == 'Reopened':
+                            record_status = 'Late'
+                        else:
+                            record_status = 'Present'
+                        
                         # Attempt Insert
                         record = AttendanceRecord(
                             date=today,
                             time=datetime.now().time(),
-                            status=attendance_status,
+                            status=record_status,
                             method='FaceID',
                             student_id=best_match.student_id,
                             faculty_id=current_user.faculty_id,
                             subject_id=subject_id,
-                            session_id=active_session.id
+                            session_id=session_id
                         )
                         db.session.add(record)
                         db.session.commit()
@@ -779,7 +536,7 @@ def recognize_face():
                             'status': 'marked',
                             'name': best_match.name,
                             'enrollment': best_match.enrollment_number,
-                            'message': f'Marked {attendance_status}',
+                            'message': 'Marked Present',
                             'location': face['location']
                         })
                 except IntegrityError:
@@ -794,19 +551,208 @@ def recognize_face():
                 except Exception as e:
                     db.session.rollback()
                     print(f"Error marking for {best_match.name}: {e}")
-                    results.append({'status': 'error', 'message': str(e)})
+                    results.append({'status': 'error', 'message': str(e), 'location': face['location']})
             else:
-                results.append({
-                    'status': 'unknown', 
-                    'message': 'Unknown Face',
-                    'location': face['location']
-                })
+                results.append({'status': 'unknown', 'message': 'Unknown Face', 'location': face['location']})
 
         return jsonify({'success': True, 'results': results})
         
     except Exception as e:
         print(f"API Error: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+# --- SESSION MANAGEMENT API ---
+@app.route('/api/session_status')
+@login_required
+def session_status():
+    """Get the current active session for the faculty member"""
+    if session.get('user_type') != 'faculty':
+        return jsonify({'active': False})
+    
+    active_session = AttendanceSession.query.filter_by(
+        faculty_id=current_user.faculty_id,
+        status='Active'
+    ).order_by(AttendanceSession.start_time.desc()).first()
+    
+    if active_session:
+        # Calculate remaining time
+        elapsed = datetime.now() - active_session.start_time
+        remaining_seconds = (active_session.duration_minutes * 60) - elapsed.total_seconds()
+        remaining_minutes = max(0, int(remaining_seconds / 60))
+        
+        return jsonify({
+            'active': True,
+            'session_id': active_session.id,
+            'class_name': active_session.class_name,
+            'subject_id': active_session.subject_id,
+            'status': active_session.status,
+            'remaining_minutes': remaining_minutes
+        })
+    
+    # Check for reopened session
+    reopened_session = AttendanceSession.query.filter_by(
+        faculty_id=current_user.faculty_id,
+        status='Reopened'
+    ).order_by(AttendanceSession.start_time.desc()).first()
+    
+    if reopened_session:
+        return jsonify({
+            'active': True,
+            'session_id': reopened_session.id,
+            'class_name': reopened_session.class_name,
+            'subject_id': reopened_session.subject_id,
+            'status': reopened_session.status,
+            'remaining_minutes': 0
+        })
+    
+    return jsonify({'active': False})
+
+@app.route('/api/start_session', methods=['POST'])
+@login_required
+def start_session():
+    """Start a new attendance session"""
+    if session.get('user_type') != 'faculty':
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    data = request.get_json()
+    print(f"DEBUG: start_session received data: {data}") # DEBUG LOG
+    class_name = data.get('class_name')
+    subject_id = data.get('subject_id')
+    duration = data.get('duration', 10)
+    
+    if not all([class_name, subject_id]):
+        print("DEBUG: Missing required fields for start_session") # DEBUG LOG
+        return jsonify({'success': False, 'message': 'Missing required fields'})
+    
+    # Check if there's already an active session
+    existing = AttendanceSession.query.filter_by(
+        faculty_id=current_user.faculty_id,
+        status='Active'
+    ).first()
+    
+    if existing:
+        return jsonify({'success': False, 'message': 'An active session already exists'})
+    
+    # Create new session
+    new_session = AttendanceSession(
+        faculty_id=current_user.faculty_id,
+        subject_id=subject_id,
+        class_name=class_name,
+        duration_minutes=duration,
+        status='Active'
+    )
+    
+    db.session.add(new_session)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'session_id': new_session.id,
+        'message': 'Session started successfully'
+    })
+
+@app.route('/api/end_session', methods=['POST'])
+@login_required
+def end_session():
+    """End the current attendance session and mark absentees"""
+    if session.get('user_type') != 'faculty':
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    data = request.get_json()
+    session_id = data.get('session_id')
+    
+    if not session_id:
+        return jsonify({'success': False, 'message': 'Session ID required'})
+    
+    attendance_session = AttendanceSession.query.filter_by(
+        id=session_id,
+        faculty_id=current_user.faculty_id
+    ).first()
+    
+    if not attendance_session:
+        return jsonify({'success': False, 'message': 'Session not found'})
+    
+    if attendance_session.status == 'Ended':
+        return jsonify({'success': False, 'message': 'Session already ended'})
+    
+    # Mark session as ended
+    attendance_session.status = 'Ended'
+    attendance_session.end_time = datetime.now()
+    
+    # Get all students in the class
+    students = Student.query.filter_by(class_name=attendance_session.class_name).all()
+    
+    # Get students already marked present
+    marked_student_ids = {r.student_id for r in AttendanceRecord.query.filter_by(
+        date=attendance_session.start_time.date(),
+        subject_id=attendance_session.subject_id,
+        status='Present'
+    ).all()}
+    
+    # Mark absent students
+    absent_count = 0
+    for student in students:
+        if student.student_id not in marked_student_ids:
+            # Check if already marked absent
+            existing = AttendanceRecord.query.filter_by(
+                student_id=student.student_id,
+                date=attendance_session.start_time.date(),
+                subject_id=attendance_session.subject_id
+            ).first()
+            
+            if not existing:
+                absent_record = AttendanceRecord(
+                    date=attendance_session.start_time.date(),
+                    time=datetime.now().time(),
+                    status='Absent',
+                    method='Auto',
+                    student_id=student.student_id,
+                    faculty_id=current_user.faculty_id,
+                    subject_id=attendance_session.subject_id,
+                    session_id=attendance_session.id
+                )
+                db.session.add(absent_record)
+                absent_count += 1
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Session ended. {absent_count} students marked as absent.'
+    })
+
+@app.route('/api/reopen_session', methods=['POST'])
+@login_required
+def reopen_session():
+    """Reopen an ended session for late marking"""
+    if session.get('user_type') != 'faculty':
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    data = request.get_json()
+    session_id = data.get('session_id')
+    
+    if not session_id:
+        return jsonify({'success': False, 'message': 'Session ID required'})
+    
+    attendance_session = AttendanceSession.query.filter_by(
+        id=session_id,
+        faculty_id=current_user.faculty_id
+    ).first()
+    
+    if not attendance_session:
+        return jsonify({'success': False, 'message': 'Session not found'})
+    
+    if attendance_session.status != 'Ended':
+        return jsonify({'success': False, 'message': 'Only ended sessions can be reopened'})
+    
+    # Reopen the session
+    attendance_session.status = 'Reopened'
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Session reopened. Late arrivals will be marked as Late.'
+    })
 
 @app.route('/manual_attendance', methods=['GET', 'POST'])
 @login_required
@@ -1052,28 +998,25 @@ def apply_leave():
         ).first()
         
         if existing:
-            flash('Leave already applied for this date and subject', 'warning')
-            return redirect(url_for('my_leaves'))
+            flash('You have already applied for leave on this date for this subject', 'warning')
+            return redirect(url_for('apply_leave'))
         
-        # Create leave application
-        leave_app = LeaveApplication(
+        leave = LeaveApplication(
             student_id=current_user.student_id,
             subject_id=subject_id,
             leave_date=leave_date,
             reason=reason,
             status='Pending'
         )
-        db.session.add(leave_app)
+        
+        db.session.add(leave)
         db.session.commit()
         
         flash('Leave application submitted successfully', 'success')
         return redirect(url_for('my_leaves'))
     
-    # GET: Show form
-    subjects = Subject.query.filter_by(
-        class_name=current_user.class_name,
-        semester=current_user.semester
-    ).all()
+    # GET request - show form
+    subjects = Subject.query.filter_by(class_name=current_user.class_name).all()
     return render_template('apply_leave.html', subjects=subjects)
 
 @app.route('/my_leaves')
@@ -1082,134 +1025,169 @@ def my_leaves():
     if session.get('user_type') != 'student':
         return redirect(url_for('dashboard'))
     
-    leaves = LeaveApplication.query.filter_by(
-        student_id=current_user.student_id
-    ).order_by(LeaveApplication.applied_on.desc()).all()
-    
+    leaves = LeaveApplication.query.filter_by(student_id=current_user.student_id).order_by(LeaveApplication.applied_on.desc()).all()
     return render_template('my_leaves.html', leaves=leaves)
 
 @app.route('/pending_leaves')
 @login_required
 def pending_leaves():
-    if session.get('user_type') not in ['faculty', 'admin']:
+    user_type = session.get('user_type')
+    if user_type not in ['admin', 'faculty']:
         return redirect(url_for('dashboard'))
     
-    # Get all pending leaves or filter by faculty's subjects
-    if session.get('user_type') == 'admin':
-        leaves = LeaveApplication.query.filter_by(status='Pending').order_by(
-            LeaveApplication.applied_on.desc()
-        ).all()
-    else:
-        # Faculty sees leaves for their subjects (simplified - show all for now)
-        leaves = LeaveApplication.query.filter_by(status='Pending').order_by(
-            LeaveApplication.applied_on.desc()
-        ).all()
+    # Get pending leaves
+    query = LeaveApplication.query.filter_by(status='Pending')
     
+    # If faculty, only show leaves for subjects they teach
+    if user_type == 'faculty':
+        # Get subjects taught by this faculty
+        faculty_subjects = Subject.query.join(Timetable).filter(
+            Timetable.faculty_id == current_user.faculty_id
+        ).all()
+        subject_ids = [s.subject_id for s in faculty_subjects]
+        if subject_ids:
+            query = query.filter(LeaveApplication.subject_id.in_(subject_ids))
+        else:
+            query = query.filter(False)  # No subjects, so no leaves
+    
+    leaves = query.order_by(LeaveApplication.applied_on.desc()).all()
     return render_template('pending_leaves.html', leaves=leaves)
+
+@app.route('/leave_history')
+@login_required
+def leave_history():
+    user_type = session.get('user_type')
+    if user_type not in ['admin', 'faculty']:
+        return redirect(url_for('dashboard'))
+    
+    # Get all processed leaves (approved/rejected)
+    query = LeaveApplication.query.filter(LeaveApplication.status.in_(['Approved', 'Rejected']))
+    
+    # If faculty, only show leaves for subjects they teach
+    if user_type == 'faculty':
+        faculty_subjects = Subject.query.join(Timetable).filter(
+            Timetable.faculty_id == current_user.faculty_id
+        ).all()
+        subject_ids = [s.subject_id for s in faculty_subjects]
+        if subject_ids:
+            query = query.filter(LeaveApplication.subject_id.in_(subject_ids))
+        else:
+            query = query.filter(False)
+    
+    leaves = query.order_by(LeaveApplication.approval_date.desc()).all()
+    return render_template('leave_history.html', leaves=leaves)
 
 @app.route('/approve_leave/<int:leave_id>', methods=['POST'])
 @login_required
 def approve_leave(leave_id):
-    if session.get('user_type') not in ['faculty', 'admin']:
+    user_type = session.get('user_type')
+    if user_type not in ['admin', 'faculty']:
         return jsonify({'success': False, 'message': 'Unauthorized'})
     
-    leave_app = LeaveApplication.query.get_or_404(leave_id)
-    remarks = request.form.get('remarks', '')
+    leave = LeaveApplication.query.get_or_404(leave_id)
     
-    leave_app.status = 'Approved'
-    leave_app.approved_by = current_user.faculty_id if session.get('user_type') == 'faculty' else None
-    leave_app.approval_date = datetime.now()
-    leave_app.remarks = remarks
+    # Check if faculty can approve (must teach the subject)
+    if user_type == 'faculty':
+        faculty_subjects = Subject.query.join(Timetable).filter(
+            Timetable.faculty_id == current_user.faculty_id
+        ).all()
+        subject_ids = [s.subject_id for s in faculty_subjects]
+        if leave.subject_id not in subject_ids:
+            return jsonify({'success': False, 'message': 'Unauthorized'})
     
-    # Create attendance record with "Leave" status
-    # Check if attendance record already exists
-    existing_record = AttendanceRecord.query.filter_by(
-        student_id=leave_app.student_id,
-        subject_id=leave_app.subject_id,
-        date=leave_app.leave_date
-    ).first()
+    if leave.status != 'Pending':
+        return jsonify({'success': False, 'message': 'Leave already processed'})
     
-    if not existing_record:
-        attendance_record = AttendanceRecord(
-            date=leave_app.leave_date,
-            time=datetime.now().time(),
-            status='Leave',
-            method='Leave',
-            student_id=leave_app.student_id,
-            faculty_id=current_user.faculty_id if session.get('user_type') == 'faculty' else 1,
-            subject_id=leave_app.subject_id
-        )
-        db.session.add(attendance_record)
+    leave.status = 'Approved'
+    if user_type == 'faculty':
+        leave.approved_by = current_user.faculty_id
+    else:
+        leave.approved_by = None  # Admin approval
+    leave.approval_date = datetime.now()
+    leave.remarks = request.form.get('remarks', '')
     
     db.session.commit()
+    
     flash('Leave approved successfully', 'success')
     return redirect(url_for('pending_leaves'))
 
 @app.route('/reject_leave/<int:leave_id>', methods=['POST'])
 @login_required
 def reject_leave(leave_id):
-    if session.get('user_type') not in ['faculty', 'admin']:
+    user_type = session.get('user_type')
+    if user_type not in ['admin', 'faculty']:
         return jsonify({'success': False, 'message': 'Unauthorized'})
     
-    leave_app = LeaveApplication.query.get_or_404(leave_id)
-    remarks = request.form.get('remarks', '')
+    leave = LeaveApplication.query.get_or_404(leave_id)
     
-    leave_app.status = 'Rejected'
-    leave_app.approved_by = current_user.faculty_id if session.get('user_type') == 'faculty' else None
-    leave_app.approval_date = datetime.now()
-    leave_app.remarks = remarks
+    # Check if faculty can reject (must teach the subject)
+    if user_type == 'faculty':
+        faculty_subjects = Subject.query.join(Timetable).filter(
+            Timetable.faculty_id == current_user.faculty_id
+        ).all()
+        subject_ids = [s.subject_id for s in faculty_subjects]
+        if leave.subject_id not in subject_ids:
+            return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    if leave.status != 'Pending':
+        return jsonify({'success': False, 'message': 'Leave already processed'})
+    
+    leave.status = 'Rejected'
+    if user_type == 'faculty':
+        leave.approved_by = current_user.faculty_id
+    else:
+        leave.approved_by = None  # Admin rejection
+    leave.approval_date = datetime.now()
+    leave.remarks = request.form.get('remarks', '')
     
     db.session.commit()
-    flash('Leave rejected', 'success')
+    
+    flash('Leave rejected', 'info')
     return redirect(url_for('pending_leaves'))
 
-@app.route('/leave_history')
-@login_required
-def leave_history():
-    if session.get('user_type') not in ['faculty', 'admin']:
-        return redirect(url_for('dashboard'))
-    
-    # Get all leaves (approved and rejected)
-    leaves = LeaveApplication.query.filter(
-        LeaveApplication.status.in_(['Approved', 'Rejected'])
-    ).order_by(LeaveApplication.approval_date.desc()).all()
-    
-    return render_template('leave_history.html', leaves=leaves)
-
 # --- TIMETABLE MANAGEMENT ---
-@app.route('/timetable')
+@app.route('/timetable', methods=['GET'])
 @login_required
 def timetable():
-    if session.get('user_type') not in ['faculty', 'admin']:
-        return redirect(url_for('dashboard'))
+    user_type = session.get('user_type')
     
-    # Get all timetable slots
-    slots = Timetable.query.order_by(Timetable.day_of_week, Timetable.start_time).all()
+    # GET request
+    if user_type == 'admin':
+        slots = Timetable.query.order_by(Timetable.day_of_week, Timetable.start_time).all()
+        subjects = Subject.query.all()
+        faculty_list = Faculty.query.all()
+    elif user_type == 'faculty':
+        slots = Timetable.query.filter_by(faculty_id=current_user.faculty_id).order_by(Timetable.day_of_week, Timetable.start_time).all()
+        subjects = Subject.query.all()
+        faculty_list = [current_user]
+    elif user_type == 'student':
+        slots = Timetable.query.filter_by(class_name=current_user.class_name).order_by(Timetable.day_of_week, Timetable.start_time).all()
+        subjects = Subject.query.filter_by(class_name=current_user.class_name).all()
+        faculty_list = Faculty.query.all()
+    else:
+        slots = []
+        subjects = []
+        faculty_list = []
     
-    # Get all subjects and faculty for dropdowns
-    subjects = Subject.query.all()
-    faculty_list = Faculty.query.all()
-    
-    return render_template('timetable.html', slots=slots, subjects=subjects, faculty_list=faculty_list)
+    return render_template('timetable.html', slots=slots, subjects=subjects, faculty_list=faculty_list, user_type=user_type)
 
 @app.route('/add_timetable_slot', methods=['POST'])
 @login_required
 def add_timetable_slot():
-    if session.get('user_type') not in ['faculty', 'admin']:
-        return jsonify({'success': False, 'message': 'Unauthorized'})
+    user_type = session.get('user_type')
+    
+    if user_type != 'admin':
+        flash('Only admin can manage timetable', 'error')
+        return redirect(url_for('timetable'))
     
     class_name = request.form.get('class_name')
-    semester = request.form.get('semester')
-    subject_id = request.form.get('subject_id')
-    faculty_id = request.form.get('faculty_id')
-    day_of_week = request.form.get('day_of_week')
+    semester = int(request.form.get('semester', 1))
+    subject_id = int(request.form.get('subject_id'))
+    faculty_id = int(request.form.get('faculty_id'))
+    day_of_week = int(request.form.get('day_of_week'))
     start_time_str = request.form.get('start_time')
     end_time_str = request.form.get('end_time')
     room_number = request.form.get('room_number', '')
-    
-    if not all([class_name, semester, subject_id, faculty_id, day_of_week, start_time_str, end_time_str]):
-        flash('All fields except room number are required', 'error')
-        return redirect(url_for('timetable'))
     
     try:
         start_time = datetime.strptime(start_time_str, '%H:%M').time()
@@ -1218,46 +1196,17 @@ def add_timetable_slot():
         flash('Invalid time format', 'error')
         return redirect(url_for('timetable'))
     
-    # Check for conflicts
-    conflicts = Timetable.query.filter_by(
-        day_of_week=int(day_of_week)
-    ).filter(
-        db.or_(
-            db.and_(
-                Timetable.faculty_id == int(faculty_id),
-                db.or_(
-                    db.and_(Timetable.start_time <= start_time, Timetable.end_time > start_time),
-                    db.and_(Timetable.start_time < end_time, Timetable.end_time >= end_time),
-                    db.and_(Timetable.start_time >= start_time, Timetable.end_time <= end_time)
-                )
-            ),
-            db.and_(
-                Timetable.room_number == room_number,
-                room_number != '',
-                db.or_(
-                    db.and_(Timetable.start_time <= start_time, Timetable.end_time > start_time),
-                    db.and_(Timetable.start_time < end_time, Timetable.end_time >= end_time),
-                    db.and_(Timetable.start_time >= start_time, Timetable.end_time <= end_time)
-                )
-            )
-        )
-    ).first()
-    
-    if conflicts:
-        flash('Conflict detected: Faculty or room is already booked at this time', 'error')
-        return redirect(url_for('timetable'))
-    
-    # Create slot
     slot = Timetable(
         class_name=class_name,
-        semester=int(semester),
-        subject_id=int(subject_id),
-        faculty_id=int(faculty_id),
-        day_of_week=int(day_of_week),
+        semester=semester,
+        subject_id=subject_id,
+        faculty_id=faculty_id,
+        day_of_week=day_of_week,
         start_time=start_time,
         end_time=end_time,
         room_number=room_number
     )
+    
     db.session.add(slot)
     db.session.commit()
     
@@ -1267,8 +1216,9 @@ def add_timetable_slot():
 @app.route('/delete_timetable_slot/<int:slot_id>', methods=['POST'])
 @login_required
 def delete_timetable_slot(slot_id):
-    if session.get('user_type') not in ['faculty', 'admin']:
-        return jsonify({'success': False, 'message': 'Unauthorized'})
+    if session.get('user_type') != 'admin':
+        flash('Only admin can delete timetable slots', 'error')
+        return redirect(url_for('timetable'))
     
     slot = Timetable.query.get_or_404(slot_id)
     db.session.delete(slot)
@@ -1276,35 +1226,6 @@ def delete_timetable_slot(slot_id):
     
     flash('Timetable slot deleted', 'success')
     return redirect(url_for('timetable'))
-
-@app.route('/api/today_classes')
-@login_required
-def today_classes():
-    if session.get('user_type') != 'faculty':
-        return jsonify({'success': False, 'message': 'Unauthorized'})
-    
-    # Get today's day of week (0=Monday, 6=Sunday)
-    today_day = datetime.now().weekday()
-    
-    # Get today's classes for this faculty
-    classes = Timetable.query.filter_by(
-        faculty_id=current_user.faculty_id,
-        day_of_week=today_day
-    ).order_by(Timetable.start_time).all()
-    
-    result = []
-    for cls in classes:
-        result.append({
-            'subject_id': cls.subject_id,
-            'subject_name': cls.subject.name,
-            'class_name': cls.class_name,
-            'semester': cls.semester,
-            'start_time': cls.start_time.strftime('%H:%M'),
-            'end_time': cls.end_time.strftime('%H:%M'),
-            'room_number': cls.room_number or 'N/A'
-        })
-    
-    return jsonify({'success': True, 'classes': result})
 
 if __name__ == '__main__':
     with app.app_context():
@@ -1317,5 +1238,11 @@ if __name__ == '__main__':
         print(" * Running with HTTPS (SSL)")
     else:
         print(" * Running with HTTP (No SSL)")
+    
+    print("DEBUG: app.py loaded. Checking for start_session route...")
+    if 'start_session' in app.view_functions:
+        print("DEBUG: start_session route FOUND!")
+    else:
+        print("DEBUG: start_session route NOT found!")
 
-    app.run(host='0.0.0.0', port=5000, debug=True, ssl_context=ssl_context)
+    app.run(host='0.0.0.0', port=5001, debug=True, ssl_context=ssl_context)

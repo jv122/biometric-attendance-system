@@ -30,11 +30,12 @@
 
         <!-- Form Side -->
         <div class="login-panel">
-            <div class="login-form-wrapper">
-                <div style="margin-bottom: 2.5rem; text-align: center;">
-                    <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.5rem;">
-                        Welcome Back</h2>
-                    <p style="color: var(--text-muted);">Please enter your details to sign in.</p>
+            <div class="card" style="width: 100%; max-width: 420px; padding: 2rem 2.25rem;">
+                <div class="card-header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 1.75rem; text-align: center;">
+                    <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem;">
+                        Welcome Back
+                    </h2>
+                    <p style="color: var(--text-muted); font-size: 0.95rem;">Sign in to manage attendance and reports.</p>
                 </div>
 
                 {% if error %}
@@ -45,7 +46,6 @@
                 {% endif %}
 
                 <form method="POST" action="/login">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="form-group">
                         <label for="user_type" class="form-label">I am a...</label>
                         <select id="user_type" name="user_type" class="form-control" required onchange="updateLabel()">
@@ -79,19 +79,9 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 0.5rem;">
                         Sign In <i class="fas fa-arrow-right" style="font-size: 0.8em;"></i>
                     </button>
-
-                    <!-- <div
-                        style="margin-top: 2rem; padding: 1rem; background: #F8FAFC; border-radius: 8px; font-size: 0.85rem; border: 1px dashed #CBD5E1;">
-                        <p style="margin-bottom: 0.5rem; font-weight: 600; color: var(--text-muted);">Demo Credentials:
-                        </p>
-                        <div style="display: flex; flex-direction: column; gap: 0.25rem; color: var(--text-light);">
-                            <span>Faculty: faculty@college.edu / faculty123</span>
-                            <span>Admin: admin@college.edu / admin123</span>
-                        </div>
-                    </div> -->
                 </form>
             </div>
         </div>

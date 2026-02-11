@@ -3,19 +3,24 @@
 {% block title %}Leave History{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="card shadow">
-        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0"><i class="fas fa-history"></i> Leave History</h4>
-            <a href="{{ url_for('pending_leaves') }}" class="btn btn-warning btn-sm">
-                <i class="fas fa-tasks"></i> Pending Requests
-            </a>
-        </div>
-        <div class="card-body">
+<div class="page-header">
+    <div>
+        <h2 class="section-title">Leave History</h2>
+        <p style="color: var(--text-muted); margin-top: 0.25rem;">All processed leave requests for your students.</p>
+    </div>
+    <div class="section-actions">
+        <a href="{{ url_for('pending_leaves') }}" class="btn btn-secondary">
+            <i class="fas fa-tasks"></i> Pending Requests
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
             {% if leaves %}
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
                         <tr>
                             <th>Student</th>
                             <th>Enrollment</th>
@@ -36,13 +41,9 @@
                             <td>{{ leave.leave_date.strftime('%d %b %Y') }}</td>
                             <td>
                                 {% if leave.status == 'Approved' %}
-                                <span class="badge bg-success">
-                                    <i class="fas fa-check-circle"></i> Approved
-                                </span>
+                                <span class="badge badge-success">Approved</span>
                                 {% else %}
-                                <span class="badge bg-danger">
-                                    <i class="fas fa-times-circle"></i> Rejected
-                                </span>
+                                <span class="badge badge-danger">Rejected</span>
                                 {% endif %}
                             </td>
                             <td>
@@ -67,12 +68,11 @@
                 </table>
             </div>
             {% else %}
-            <div class="text-center py-5">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No leave history available.</p>
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                <i class="fas fa-inbox" style="font-size: 2.5rem; margin-bottom: 0.75rem; opacity: 0.6;"></i>
+                <p>No leave history available.</p>
             </div>
             {% endif %}
-        </div>
     </div>
 </div>
 {% endblock %}

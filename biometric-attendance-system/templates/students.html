@@ -3,14 +3,14 @@
 {% block title %}Manage Students{% endblock %}
 
 {% block content %}
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-    <h2 class="section-title" style="margin:0;">Student Records</h2>
-    <div style="display: flex; gap: 0.5rem;">
-        <button onclick="showBulkUpload()" class="btn btn-secondary" style="width: auto;">
-            <i class="fas fa-upload icon"></i>Bulk Upload
+<div class="page-header">
+    <h2 class="section-title">Student Records</h2>
+    <div class="section-actions">
+        <button onclick="showBulkUpload()" class="btn btn-secondary">
+            <i class="fas fa-upload icon"></i> Bulk Upload
         </button>
-        <a href="{{ url_for('add_student') }}" class="btn btn-primary" style="width: auto;">
-            <i class="fas fa-plus icon"></i>Add New Student
+        <a href="{{ url_for('add_student') }}" class="btn btn-primary">
+            <i class="fas fa-plus icon"></i> Add New Student
         </a>
     </div>
 </div>
@@ -18,9 +18,9 @@
 <!-- Bulk Upload Modal -->
 <div id="bulkUploadModal"
     style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
-    <div class="card" style="max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;">
+    <div class="card" style="max-width: 640px; width: 90%; max-height: 90vh; overflow-y: auto;">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0;">Bulk Upload Students</h3>
+            <h3 class="card-title" style="margin: 0;"><i class="fas fa-upload"></i> Bulk Upload Students</h3>
             <button onclick="hideBulkUpload()"
                 style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
         </div>
@@ -44,15 +44,16 @@
             </button>
         </div>
 
-        <div id="uploadResults" style="display: none;">
-            <h4>Upload Results</h4>
+        <div id="uploadResults" style="display: none; margin-top: 1rem;">
+            <h4 class="section-title" style="font-size: 1.1rem;">Upload Results</h4>
             <div id="resultsContent"></div>
         </div>
     </div>
 </div>
 
 <div class="card">
-    <table class="data-table">
+    <div class="table-container">
+        <table class="data-table">
         <thead>
             <tr>
                 <th>Photo</th>
@@ -84,7 +85,8 @@
             </tr>
             {% endfor %}
         </tbody>
-    </table>
+        </table>
+    </div>
 </div>
 
 <script>

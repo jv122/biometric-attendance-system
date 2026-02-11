@@ -8,3 +8,5 @@ numpy
 Pillow
 pandas
 openpyxl
+psycopg2-binary
+python-dotenv

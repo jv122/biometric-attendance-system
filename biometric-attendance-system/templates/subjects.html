@@ -3,19 +3,23 @@
 {% block title %}Manage Subjects{% endblock %}
 
 {% block content %}
-<div class="row" style="display: flex; gap: 2rem; flex-wrap: wrap;">
-    <div class="col" style="flex: 1; min-width: 300px;">
+<div class="page-header">
+    <h2 class="section-title">Subjects</h2>
+</div>
+
+<div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 300px;">
         <div class="form-section">
-            <h2>Add New Subject</h2>
+            <h3 class="section-title" style="font-size: 1.2rem;">Add New Subject</h3>
             <form action="{{ url_for('add_subject') }}" method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
-                    <label>Subject Name</label>
-                    <input type="text" name="name" placeholder="e.g. Data Structures" required>
+                    <label class="form-label">Subject Name</label>
+                    <input type="text" name="name" class="form-control" placeholder="e.g. Data Structures" required>
                 </div>
                 <div class="form-group">
-                    <label>Class</label>
-                    <select name="class_name" id="class_name" required onchange="updateSemesters()">
+                    <label class="form-label">Class</label>
+                    <select name="class_name" id="class_name" class="form-control" required onchange="updateSemesters()">
                         <option value="">Select Class</option>
                         <option value="FY">FY</option>
                         <option value="SY">SY</option>
@@ -23,52 +27,57 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Semester</label>
-                    <select name="semester" id="semester" required>
+                    <label class="form-label">Semester</label>
+                    <select name="semester" id="semester" class="form-control" required>
                         <option value="">Select Class First</option>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-primary">Add Subject</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Add Subject
+                </button>
             </form>
         </div>
     </div>
 
-    <div class="col" style="flex: 2; min-width: 300px;">
+    <div style="flex: 2; min-width: 300px;">
         <div class="card">
-            <h3>Current Subjects</h3>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Class</th>
-                        <th>Semester</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for sub in subjects %}
-                    <tr>
-                        <td>{{ sub.subject_id }}</td>
-                        <td>{{ sub.name }}</td>
-                        <td><span class="badge">{{ sub.class_name }}</span></td>
-                        <td>Sem {{ sub.semester }}</td>
-                        <td>
-                            <form action="{{ url_for('delete_subject', id=sub.subject_id) }}" method="POST"
-                                onsubmit="return confirm('Delete this subject?');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn-icon delete" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-book"></i> Current Subjects</h3>
+            </div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Class</th>
+                            <th>Semester</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sub in subjects %}
+                        <tr>
+                            <td>{{ sub.subject_id }}</td>
+                            <td>{{ sub.name }}</td>
+                            <td><span class="badge badge-muted">{{ sub.class_name }}</span></td>
+                            <td>Sem {{ sub.semester }}</td>
+                            <td>
+                                <form action="{{ url_for('delete_subject', id=sub.subject_id) }}" method="POST"
+                                    onsubmit="return confirm('Delete this subject?');" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn-icon delete" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-</div>
 </div>
 
 <script>

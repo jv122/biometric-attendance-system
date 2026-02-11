@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Biometric Attendance System{% endblock %}</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Biometric Attendance System{% endblock %}</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -95,9 +95,9 @@
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
-            <div class="alert alert-{{ category }}"
-                style="padding: 1rem; margin-bottom: 1rem; border-radius: 6px; background: {{ '#d4edda' if category=='success' else '#f8d7da' }}; color: {{ '#155724' if category=='success' else '#721c24' }};">
-                {{ message }}
+            <div class="alert alert-{{ category }}">
+                <i class="fas fa-info-circle"></i>
+                <span>{{ message }}</span>
             </div>
             {% endfor %}
             {% endif %}

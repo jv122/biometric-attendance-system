@@ -21,10 +21,10 @@ try:
     print("=" * 50)
     print("Starting Biometric Attendance System Server")
     print("=" * 50)
-    print("Server will be available at: http://127.0.0.1:5000")
+    print("Server will be available at: http://127.0.0.1:5001")
     print("Press Ctrl+C to stop the server")
     print("=" * 50)
-    app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False)
+    app.run(debug=True, host='127.0.0.1', port=5001, use_reloader=False)
 except Exception as e:
     print(f"Error starting server: {e}")
     import traceback

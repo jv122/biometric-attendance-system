@@ -93,7 +93,13 @@ function updateUIState(state, data = {}) {
 
 function checkSessionStatus() {
     fetch('/api/session_status')
-        .then(res => res.json())
+        .then(res => {
+            if (res.headers.get('content-type').includes('text/html')) {
+                // Session expired or not logged in - just return inactive state or handle gracefully
+                return { active: false };
+            }
+            return res.json();
+        })
         .then(data => {
             if (data.active) {
                 currentSessionId = data.session_id;
@@ -118,26 +124,52 @@ function startSession() {
 
     const duration = parseInt(durationInput.value) || 10;
 
+    console.log("Starting session with:", {
+        class_name: classSelect.value,
+        subject_id: subjectSelect.value,
+        duration: duration
+    });
+
     fetch('/api/start_session', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCSRFToken()
         },
+        credentials: 'include',
         body: JSON.stringify({
             class_name: classSelect.value,
             subject_id: subjectSelect.value,
             duration: duration
         })
     })
-        .then(res => res.json())
+        .then(res => {
+            if (res.status === 401 || res.status === 403 || res.url.includes('/login')) {
+                throw new Error('Session expired');
+            }
+            if (!res.ok) {
+                // Try to parse error text if JSON fails
+                return res.text().then(text => { throw new Error('Server Error: ' + res.status + ' ' + text.substring(0, 100)); });
+            }
+            return res.json();
+        })
         .then(data => {
+            console.log("Start Session Response:", data);
             if (data.success) {
                 currentSessionId = data.session_id;
                 updateUIState('Active', { remaining_minutes: duration });
                 showResult('Session Started', 'success');
             } else {
-                alert(data.message);
+                alert('Error starting session: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error("Start Session Fetch Error:", err);
+            if (err.message === 'Session expired') {
+                alert("Session expired. Redirecting to login...");
+                window.location.href = '/login';
+            } else {
+                alert("Failed to connect to server: " + err.message);
             }
         });
 }
@@ -151,9 +183,18 @@ function endSession() {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCSRFToken()
         },
+        credentials: 'include',
         body: JSON.stringify({ session_id: currentSessionId })
     })
-        .then(res => res.json())
+        .then(res => {
+            if (res.status === 401 || res.status === 403 || res.url.includes('/login')) {
+                throw new Error('Session expired');
+            }
+            if (!res.ok) {
+                return res.text().then(text => { throw new Error('Server Error: ' + res.status + ' '); });
+            }
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
                 updateUIState('Ended');
@@ -164,7 +205,12 @@ function endSession() {
         })
         .catch(err => {
             console.error("End Session Error:", err);
-            alert('Error connecting to server: ' + err.message);
+            if (err.message === 'Session expired') {
+                alert('Session expired. Please login again.');
+                window.location.reload();
+            } else {
+                alert('Error connecting to server: ' + err.message);
+            }
         });
 }
 
@@ -175,13 +221,29 @@ function reopenSession() {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCSRFToken()
         },
+        credentials: 'include',
         body: JSON.stringify({ session_id: currentSessionId })
     })
-        .then(res => res.json())
+        .then(res => {
+            if (res.status === 401 || res.status === 403 || res.url.includes('/login')) {
+                throw new Error('Session expired');
+            }
+            if (!res.ok) {
+                return res.text().then(text => { throw new Error('Server Error: ' + res.status + ' '); });
+            }
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
                 updateUIState('Reopened');
                 showResult('Session Reopened. Marking as Late.', 'warning');
+            }
+        })
+        .catch(err => {
+            console.error("Reopen Session Error:", err);
+            if (err.message === 'Session expired') {
+                alert('Session expired. Please login again.');
+                window.location.reload();
             }
         });
 }
@@ -245,8 +307,26 @@ function startCameraInternal() {
             stream = mediaStream;
             video.srcObject = mediaStream;
 
+            // Monitor stream for disconnection
+            mediaStream.getVideoTracks().forEach(track => {
+                track.onended = () => {
+                    console.log('Camera track ended');
+                    if (currentSessionId) {
+                        // Try to restart if session is still active
+                        setTimeout(() => {
+                            if (currentSessionId && !stream) {
+                                console.log('Attempting to restart camera after track ended...');
+                                startCameraInternal();
+                            }
+                        }, 1000);
+                    }
+                };
+            });
+
             video.onloadedmetadata = () => {
-                video.play();
+                video.play().catch(err => {
+                    console.error('Video play error:', err);
+                });
 
                 // Set overlay canvas size to match video source resolution
                 if (overlayCanvas) {
@@ -258,10 +338,26 @@ function startCameraInternal() {
                 placeholder.style.display = 'none';
                 overlay.style.display = 'block';
             };
+
+            video.onerror = (err) => {
+                console.error('Video error:', err);
+                if (currentSessionId) {
+                    showResult('Camera error. Attempting to restart...', 'error');
+                    setTimeout(() => {
+                        if (currentSessionId) startCameraInternal();
+                    }, 2000);
+                }
+            };
         })
         .catch(err => {
             console.error("Camera Error:", err);
-            alert("Could not access camera: " + err.message);
+            showResult("Could not access camera: " + err.message, 'error');
+            // Retry after delay if session is active
+            if (currentSessionId) {
+                setTimeout(() => {
+                    if (currentSessionId) startCameraInternal();
+                }, 3000);
+            }
         });
 }
 
@@ -282,7 +378,25 @@ function stopCamera() {
 
 // Recognition Loop
 function captureAndRecognize() {
-    if (!video || !canvas || !stream) return;
+    if (!video || !canvas) {
+        // Retry after a delay if elements not ready
+        setTimeout(() => requestAnimationFrame(captureAndRecognize), 100);
+        return;
+    }
+
+    // Check if stream is active, restart if needed (but only if session is active)
+    if (!stream && currentSessionId) {
+        console.log('Stream lost, attempting to restart camera...');
+        startCameraInternal();
+        setTimeout(() => requestAnimationFrame(captureAndRecognize), 500);
+        return;
+    }
+
+    if (!stream) {
+        // No stream and no active session - don't continue
+        return;
+    }
+
     if (isProcessing) {
         requestAnimationFrame(captureAndRecognize);
         return;
@@ -294,10 +408,16 @@ function captureAndRecognize() {
         return;
     }
 
+    // Check if video stream is actually playing
+    if (video.readyState < 2) {
+        requestAnimationFrame(captureAndRecognize);
+        return;
+    }
+
     const context = canvas.getContext('2d');
 
-    // Downscale for performance (max width 600px)
-    const MAX_WIDTH = 600;
+    // Downscale for performance (max width 800px)
+    const MAX_WIDTH = 800;
     const originalWidth = video.videoWidth;
     const originalHeight = video.videoHeight;
 
@@ -328,13 +448,22 @@ function captureAndRecognize() {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCSRFToken()
         },
+        credentials: 'include',
         body: JSON.stringify({
             image: imageData,
             class_name: document.getElementById('class_name').value,
             subject_id: document.getElementById('subject_id').value
         })
     })
-        .then(res => res.json())
+        .then(res => {
+            if (res.status === 401 || res.status === 403 || res.url.includes('/login')) {
+                throw new Error('Session expired');
+            }
+            if (!res.ok) {
+                return res.text().then(text => { throw new Error('Server Error: ' + res.status + ' '); });
+            }
+            return res.json();
+        })
         .then(data => {
             if (data.success) {
                 processResults(data.results);
@@ -346,14 +475,45 @@ function captureAndRecognize() {
                 }
             }
         })
-        .catch(err => console.error(err))
-        .finally(() => {
+        .catch(err => {
+            console.error('Recognition error:', err);
+
+            if (err.message === 'Session expired') {
+                isProcessing = false;
+                alert("Session expired. Please log in again.");
+                window.location.reload();
+                return;
+            }
+
+            showResult('Connection error. Retrying...', 'error');
             isProcessing = false;
-            if (stream) requestAnimationFrame(captureAndRecognize);
+            // Continue loop even on error, but with a small delay
+            if (stream && currentSessionId) {
+                setTimeout(() => requestAnimationFrame(captureAndRecognize), 500);
+            }
+        })
+        .finally(() => {
+            // isProcessing = false; // Moved out to fix loop
+            isProcessing = false;
+            // Always continue the loop if stream exists and session is active
+            if (stream && currentSessionId) {
+                requestAnimationFrame(captureAndRecognize);
+            } else if (currentSessionId && !stream) {
+                // Session active but stream lost - try to restart
+                console.log('Stream lost during recognition, attempting restart...');
+                setTimeout(() => {
+                    if (currentSessionId) startCameraInternal();
+                }, 1000);
+            }
         });
 }
 
 function processResults(results) {
+    if (!results) return; // Safety check
+
+    // Debug log
+    console.log("Processed Results:", results);
+
     // Clear previous drawings
     if (overlayContext && overlayCanvas) {
         overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
@@ -400,6 +560,7 @@ function processResults(results) {
             msgParts.push('Please Smile 😊');
         } else if (res.status === 'unknown') {
             // Optional: msgParts.push('Unknown');
+            console.log("Unknown face detected");
         }
     });
 

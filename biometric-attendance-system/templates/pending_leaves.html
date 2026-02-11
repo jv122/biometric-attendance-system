@@ -3,96 +3,88 @@
 {% block title %}Pending Leave Requests{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-4">
-    <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-1"><i class="fas fa-clock text-warning"></i> Pending Leave Requests</h2>
-            <p class="text-muted mb-0">Review and process student leave applications</p>
-        </div>
-        <a href="{{ url_for('leave_history') }}" class="btn btn-outline-primary">
+<div class="page-header">
+    <div>
+        <h2 class="section-title">Pending Leave Requests</h2>
+        <p style="color: var(--text-muted); margin-top: 0.25rem;">Review and process student leave applications.</p>
+    </div>
+    <div class="section-actions">
+        <a href="{{ url_for('leave_history') }}" class="btn btn-secondary">
             <i class="fas fa-history"></i> View History
         </a>
     </div>
+</div>
 
-    {% if leaves %}
-    <!-- Statistics Card -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-shrink-0">
-                            <div class="bg-warning bg-opacity-10 rounded p-3">
-                                <i class="fas fa-clock fa-2x text-warning"></i>
-                            </div>
-                        </div>
-                        <div class="flex-grow-1 ms-3">
-                            <h3 class="mb-0">{{ leaves|length }}</h3>
-                            <p class="text-muted mb-0 small">Pending Requests</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+{% if leaves %}
+<div class="card" style="max-width: 340px; margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-clock"></i> At a Glance</h3>
+    </div>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <div
+            style="width: 44px; height: 44px; border-radius: 999px; background: rgba(255, 193, 7, 0.1); display:flex; align-items:center; justify-content:center; color: #c05621;">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div>
+            <div style="font-size: 1.8rem; font-weight: 700; color: var(--text-main); line-height: 1;">
+                {{ leaves|length }}</div>
+            <div style="font-size: 0.9rem; color: var(--text-muted);">Pending requests</div>
         </div>
     </div>
+</div>
 
-    <!-- Leave Requests Table -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light">
-                        <tr>
-                            <th class="px-4 py-3 border-0">Student</th>
-                            <th class="py-3 border-0">Class</th>
-                            <th class="py-3 border-0">Subject</th>
-                            <th class="py-3 border-0">Leave Date</th>
-                            <th class="py-3 border-0">Applied</th>
-                            <th class="py-3 border-0">Reason</th>
-                            <th class="px-4 py-3 border-0 text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+<div class="card">
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Class</th>
+                    <th>Subject</th>
+                    <th>Leave Date</th>
+                    <th>Applied</th>
+                    <th>Reason</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
                         {% for leave in leaves %}
-                        <tr>
-                            <td class="px-4">
-                                <div>
-                                    <div class="fw-semibold">{{ leave.student.name }}</div>
-                                    <small class="text-muted">{{ leave.student.enrollment_number }}</small>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1">
-                                    {{ leave.student.class_name }} - Sem {{ leave.student.semester }}
-                                </span>
-                            </td>
-                            <td>{{ leave.subject.name }}</td>
-                            <td>
-                                <strong>{{ leave.leave_date.strftime('%d %b %Y') }}</strong>
-                            </td>
-                            <td>
-                                <small class="text-muted">{{ leave.applied_on.strftime('%d %b, %I:%M %p') }}</small>
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-link text-decoration-none p-0" data-bs-toggle="modal"
-                                    data-bs-target="#viewReasonModal{{ leave.leave_id }}">
-                                    <i class="fas fa-eye"></i> View
-                                </button>
-                            </td>
-                            <td class="px-4 text-end">
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button class="btn btn-success" data-bs-toggle="modal"
-                                        data-bs-target="#approveModal{{ leave.leave_id }}">
-                                        <i class="fas fa-check"></i> Approve
-                                    </button>
-                                    <button class="btn btn-danger" data-bs-toggle="modal"
-                                        data-bs-target="#rejectModal{{ leave.leave_id }}">
-                                        <i class="fas fa-times"></i> Reject
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                <tr>
+                    <td>
+                        <strong>{{ leave.student.name }}</strong><br>
+                        <small style="color: var(--text-muted);">{{ leave.student.enrollment_number }}</small>
+                    </td>
+                    <td>
+                        <span class="badge badge-muted">
+                            {{ leave.student.class_name }} • Sem {{ leave.student.semester }}
+                        </span>
+                    </td>
+                    <td>{{ leave.subject.name }}</td>
+                    <td>
+                        <strong>{{ leave.leave_date.strftime('%d %b %Y') }}</strong>
+                    </td>
+                    <td>
+                        <small style="color: var(--text-muted);">{{ leave.applied_on.strftime('%d %b, %I:%M %p') }}</small>
+                    </td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;"
+                            data-bs-toggle="modal" data-bs-target="#viewReasonModal{{ leave.leave_id }}">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 0.25rem; justify-content: flex-start;">
+                            <button class="btn btn-primary" style="padding: 0.35rem 0.8rem; font-size: 0.8rem;"
+                                data-bs-toggle="modal" data-bs-target="#approveModal{{ leave.leave_id }}">
+                                <i class="fas fa-check"></i> Approve
+                            </button>
+                            <button class="btn btn-secondary" style="padding: 0.35rem 0.8rem; font-size: 0.8rem; background: #ef4444; border-color: #dc2626; color: #fff;"
+                                data-bs-toggle="modal" data-bs-target="#rejectModal{{ leave.leave_id }}">
+                                <i class="fas fa-times"></i> Reject
+                            </button>
+                        </div>
+                    </td>
+                </tr>
 
                         <!-- View Reason Modal -->
                         <div class="modal fade" id="viewReasonModal{{ leave.leave_id }}" tabindex="-1">
@@ -242,25 +234,20 @@
                             </div>
                         </div>
                         {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+            </tbody>
+        </table>
     </div>
-    {% else %}
-    <!-- Empty State -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-body text-center py-5">
-            <div class="mb-4">
-                <i class="fas fa-check-circle fa-4x text-success opacity-50"></i>
-            </div>
-            <h4 class="mb-2">All Caught Up!</h4>
-            <p class="text-muted mb-4">There are no pending leave requests at the moment.</p>
-            <a href="{{ url_for('leave_history') }}" class="btn btn-outline-primary">
-                <i class="fas fa-history"></i> View Leave History
-            </a>
-        </div>
-    </div>
-    {% endif %}
 </div>
+{% else %}
+<div class="card">
+    <div style="text-align: center; padding: 2.5rem 2rem; color: var(--text-muted);">
+        <i class="fas fa-check-circle" style="font-size: 3rem; margin-bottom: 0.75rem; opacity: 0.5;"></i>
+        <h3 style="margin-bottom: 0.5rem; color: var(--text-main);">All caught up!</h3>
+        <p style="margin-bottom: 1.25rem;">There are no pending leave requests at the moment.</p>
+        <a href="{{ url_for('leave_history') }}" class="btn btn-secondary">
+            <i class="fas fa-history"></i> View Leave History
+        </a>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

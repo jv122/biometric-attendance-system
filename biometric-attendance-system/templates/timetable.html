@@ -3,66 +3,67 @@
 {% block title %}Timetable Management{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="card shadow">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0"><i class="fas fa-calendar-week"></i> Timetable Management</h4>
-            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addSlotModal">
-                <i class="fas fa-plus"></i> Add Slot
-            </button>
-        </div>
-        <div class="card-body">
-            {% if slots %}
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Day</th>
-                            <th>Time</th>
-                            <th>Class</th>
-                            <th>Subject</th>
-                            <th>Faculty</th>
-                            <th>Room</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
-                        {% for slot in slots %}
-                        <tr>
-                            <td><strong>{{ days[slot.day_of_week] }}</strong></td>
-                            <td>{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}</td>
-                            <td>{{ slot.class_name }} (Sem {{ slot.semester }})</td>
-                            <td>{{ slot.subject.name }}</td>
-                            <td>{{ slot.faculty.name }}</td>
-                            <td>{{ slot.room_number or 'N/A' }}</td>
-                            <td>
-                                <form method="POST"
-                                    action="{{ url_for('delete_timetable_slot', slot_id=slot.timetable_id) }}"
-                                    style="display:inline;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                                    <button type="submit" class="btn btn-sm btn-danger"
-                                        onclick="return confirm('Delete this slot?')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="text-center py-5">
-                <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No timetable slots added yet.</p>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSlotModal">
-                    <i class="fas fa-plus"></i> Add First Slot
-                </button>
-            </div>
-            {% endif %}
-        </div>
+<div class="page-header">
+    <div>
+        <h2 class="section-title">Timetable Management</h2>
+        <p style="color: var(--text-muted); margin-top: 0.25rem;">Manage recurring lecture slots for all classes.</p>
     </div>
+    <div class="section-actions">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSlotModal">
+            <i class="fas fa-plus"></i> Add Slot
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    {% if slots %}
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>Time</th>
+                    <th>Class</th>
+                    <th>Subject</th>
+                    <th>Faculty</th>
+                    <th>Room</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                        {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+            {% for slot in slots %}
+            <tr>
+                <td><strong>{{ days[slot.day_of_week] }}</strong></td>
+                <td>{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}</td>
+                <td><span class="badge badge-muted">{{ slot.class_name }} • Sem {{ slot.semester }}</span></td>
+                <td>{{ slot.subject.name }}</td>
+                <td>{{ slot.faculty.name }}</td>
+                <td>{{ slot.room_number or 'N/A' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('delete_timetable_slot', slot_id=slot.timetable_id) }}"
+                        style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button type="submit" class="btn-icon delete" title="Delete"
+                            onclick="return confirm('Delete this slot?')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 2.5rem 2rem; color: var(--text-muted);">
+        <i class="fas fa-calendar-times" style="font-size: 3rem; margin-bottom: 0.75rem; opacity: 0.5;"></i>
+        <p style="margin-bottom: 1rem;">No timetable slots added yet.</p>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSlotModal">
+            <i class="fas fa-plus"></i> Add First Slot
+        </button>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Add Slot Modal -->
