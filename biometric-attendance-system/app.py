@@ -10,6 +10,7 @@ import json
 import os
 from dotenv import load_dotenv
 from sqlalchemy import or_, and_
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import logging
 
 # Load environment variables
@@ -360,16 +361,38 @@ def add_faculty():
             flash('Email already registered', 'error')
             return redirect(url_for('add_faculty'))
             
+        # validate contact number is numeric
+        try:
+            contact_no_int = int(contact_no)
+        except Exception:
+            flash('Contact number must be numeric', 'error')
+            return redirect(url_for('add_faculty'))
+
         new_faculty = Faculty(
             name=name,
             email=email,
             password=generate_password_hash(password),
-            contact_no=contact_no
+            contact_no=contact_no_int
         )
-        
-        db.session.add(new_faculty)
-        db.session.commit()
-        
+
+        try:
+            db.session.add(new_faculty)
+            db.session.commit()
+        except IntegrityError as ie:
+            db.session.rollback()
+            logger.exception('Database integrity error while adding faculty')
+            # Check common unique constraint conflicts
+            if 'unique' in str(ie).lower() or 'duplicate' in str(ie).lower():
+                flash('Email or contact number already exists', 'error')
+            else:
+                flash('Database error while adding faculty', 'error')
+            return redirect(url_for('add_faculty'))
+        except SQLAlchemyError:
+            db.session.rollback()
+            logger.exception('Database error while adding faculty')
+            flash('An unexpected database error occurred', 'error')
+            return redirect(url_for('add_faculty'))
+
         flash('Faculty added successfully', 'success')
         return redirect(url_for('faculty'))
         
