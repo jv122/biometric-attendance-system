@@ -8,6 +8,13 @@ let stream = null;
 let attendanceLog = [];
 let markedStudents = new Set();
 let isProcessing = false;
+// Smoothing & performance config
+const SMOOTHING_ENABLED = true; // feature-flag: safe to toggle
+const FRAME_SKIP = 2; // process every Nth capture frame for recognition
+let frameCounter = 0;
+
+// overlay smoothing structures
+let detectedBoxes = []; // {id, target:{x,y,w,h}, current:{x,y,w,h}, name, status}
 
 // Session State
 let currentSessionId = null;
@@ -19,6 +26,9 @@ document.addEventListener('DOMContentLoaded', function () {
     canvas = document.getElementById('canvas');
     overlayCanvas = document.getElementById('overlay-canvas');
     if (overlayCanvas) overlayContext = overlayCanvas.getContext('2d');
+
+    // Start overlay render loop
+    requestAnimationFrame(renderOverlayLoop);
 
     // Check for active session on load
     checkSessionStatus();
@@ -397,7 +407,10 @@ function captureAndRecognize() {
         return;
     }
 
-    if (isProcessing) {
+    // Frame skipping to reduce CPU/network
+    frameCounter = (frameCounter + 1) % FRAME_SKIP;
+    if (frameCounter !== 0 && !isProcessing) {
+        // Still continue loop but don't do heavy capture
         requestAnimationFrame(captureAndRecognize);
         return;
     }
@@ -431,8 +444,9 @@ function captureAndRecognize() {
         canvas.height = originalHeight;
     }
 
+    // draw scaled frame for recognition
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+    const imageData = canvas.toDataURL('image/jpeg', 0.7);
 
     // Only send if session active (or reopened)
     if (!currentSessionId) {
@@ -466,6 +480,8 @@ function captureAndRecognize() {
         })
         .then(data => {
             if (data.success) {
+                // Update detectedBoxes targets for smooth overlay
+                updateDetectedBoxesFromResults(data.results);
                 processResults(data.results);
             } else {
                 showResult(data.error || data.message || 'Recognition Error', 'error');
@@ -515,9 +531,7 @@ function processResults(results) {
     console.log("Processed Results:", results);
 
     // Clear previous drawings
-    if (overlayContext && overlayCanvas) {
-        overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    }
+    // overlay cleared in render loop - keep processing minimal here
 
     if (!results || results.length === 0) {
         showResult('', 'none');
@@ -528,26 +542,14 @@ function processResults(results) {
     results.forEach(res => {
         // Draw Box
         if (res.location && overlayContext) {
+            // compute scaled coordinates
             const [top, right, bottom, left] = res.location.map(val => val / currentScale);
             const width = right - left;
             const height = bottom - top;
 
-            overlayContext.lineWidth = 4;
-            if (res.status === 'marked' || res.status === 'existing') {
-                overlayContext.strokeStyle = '#22c55e'; // Green
-                overlayContext.fillStyle = 'rgba(34, 197, 94, 0.2)';
-            } else if (res.status === 'liveness_failed') {
-                overlayContext.strokeStyle = '#f59e0b'; // Yellow
-                overlayContext.fillStyle = 'rgba(245, 158, 11, 0.2)';
-            } else {
-                overlayContext.strokeStyle = '#ef4444'; // Red (Unknown)
-                overlayContext.fillStyle = 'rgba(239, 68, 68, 0.2)';
-            }
-
-            overlayContext.beginPath();
-            overlayContext.rect(left, top, width, height);
-            overlayContext.stroke();
-            overlayContext.fill();
+            // push/update detectedBoxes target
+            const id = res.enrollment || (res.name + '_' + left + '_' + top);
+            updateOrCreateBox(id, left, top, width, height, res.name, res.status);
         }
 
         if (res.status === 'marked' || res.status === 'existing') {
@@ -572,6 +574,141 @@ function processResults(results) {
         if (unknownCount > 0) showResult(`${unknownCount} Face(s) Detected (Unknown)`, 'error');
         else showResult('', 'none');
     }
+}
+
+// Update or create smoothing box
+function updateOrCreateBox(id, x, y, w, h, name, status) {
+    let box = detectedBoxes.find(b => b.id === id);
+    if (!box) {
+        box = {
+            id,
+            target: { x, y, w, h },
+            current: { x: x, y: y, w: w, h: h },
+            name: name || '',
+            status: status || 'unknown',
+            lastSeen: Date.now()
+        };
+        detectedBoxes.push(box);
+    } else {
+        box.target.x = x;
+        box.target.y = y;
+        box.target.w = w;
+        box.target.h = h;
+        box.name = name || box.name;
+        box.status = status || box.status;
+        box.lastSeen = Date.now();
+    }
+}
+
+function updateDetectedBoxesFromResults(results) {
+    const seenIds = new Set();
+    if (results && results.length) {
+        results.forEach(res => {
+            if (res.location) {
+                const [top, right, bottom, left] = res.location.map(val => val / currentScale);
+                const width = right - left;
+                const height = bottom - top;
+                const id = res.enrollment || (res.name + '_' + left + '_' + top);
+                updateOrCreateBox(id, left, top, width, height, res.name, res.status);
+                seenIds.add(id);
+            }
+        });
+    }
+
+    // fade out boxes not seen recently
+    const now = Date.now();
+    detectedBoxes = detectedBoxes.filter(b => (now - b.lastSeen) < 3000 || seenIds.has(b.id));
+}
+
+// Overlay render loop - runs every animation frame and interpolates positions
+function renderOverlayLoop() {
+    if (!overlayCanvas || !overlayContext) {
+        requestAnimationFrame(renderOverlayLoop);
+        return;
+    }
+
+    overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    const smoothing = SMOOTHING_ENABLED ? 0.2 : 1.0; // lerp factor
+
+    detectedBoxes.forEach(box => {
+        // interpolate current toward target
+        box.current.x += (box.target.x - box.current.x) * smoothing;
+        box.current.y += (box.target.y - box.current.y) * smoothing;
+        box.current.w += (box.target.w - box.current.w) * smoothing;
+        box.current.h += (box.target.h - box.current.h) * smoothing;
+
+        // draw using GPU-accelerated styles
+        overlayContext.save();
+        overlayContext.lineWidth = 3;
+
+        let stroke = '#ef4444';
+        let fill = 'rgba(239, 68, 68, 0.12)';
+        if (box.status === 'marked' || box.status === 'existing') {
+            stroke = '#16a34a';
+            fill = 'rgba(16,163,127,0.08)';
+        } else if (box.status === 'liveness_failed') {
+            stroke = '#f59e0b';
+            fill = 'rgba(245,158,11,0.08)';
+        }
+
+        // rounded box with soft shadow
+        overlayContext.strokeStyle = stroke;
+        overlayContext.fillStyle = fill;
+        const r = 10; // corner radius
+        roundRect(overlayContext, box.current.x, box.current.y, box.current.w, box.current.h, r, true, true);
+
+        // label
+        const labelPad = 8;
+        overlayContext.font = '600 14px Inter, system-ui, sans-serif';
+        overlayContext.fillStyle = 'rgba(255,255,255,0.9)';
+        const labelText = box.name || 'Unknown';
+        const textWidth = overlayContext.measureText(labelText).width;
+        const labelX = box.current.x + 6;
+        const labelY = Math.max(20, box.current.y - 10);
+
+        // background pill
+        overlayContext.fillStyle = stroke;
+        overlayContext.globalAlpha = 0.95;
+        const pillW = textWidth + (labelPad * 2);
+        const pillH = 20;
+        roundRect(overlayContext, labelX - 4, labelY - pillH + 6, pillW, pillH, 10, true, false);
+
+        overlayContext.globalAlpha = 1;
+        overlayContext.fillStyle = '#fff';
+        overlayContext.fillText(labelText, labelX + labelPad, labelY + 2);
+
+        overlayContext.restore();
+    });
+
+    requestAnimationFrame(renderOverlayLoop);
+}
+
+// utility: rounded rectangle drawing
+function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+    if (typeof stroke === 'undefined') stroke = true;
+    if (typeof radius === 'undefined') radius = 5;
+    if (typeof radius === 'number') {
+        radius = { tl: radius, tr: radius, br: radius, bl: radius };
+    } else {
+        const defaultRadius = { tl: 0, tr: 0, br: 0, bl: 0 };
+        for (let side in defaultRadius) {
+            radius[side] = radius[side] || defaultRadius[side];
+        }
+    }
+    ctx.beginPath();
+    ctx.moveTo(x + radius.tl, y);
+    ctx.lineTo(x + width - radius.tr, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+    ctx.lineTo(x + width, y + height - radius.br);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+    ctx.lineTo(x + radius.bl, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+    ctx.lineTo(x, y + radius.tl);
+    ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
 }
 
 function showResult(msg, type) {
