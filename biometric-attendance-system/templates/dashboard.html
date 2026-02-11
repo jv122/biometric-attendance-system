@@ -10,133 +10,133 @@
     </div>
 </div>
 
-    <div class="dashboard-grid">
-        <!-- Profile Card -->
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-id-card"></i> My Profile</h3>
+<div class="dashboard-grid">
+    <!-- Profile Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-id-card"></i> My Profile</h3>
+        </div>
+        <div style="flex: 1;">
+            <div style="margin-bottom: 0.75rem;">
+                <span
+                    style="display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 0.1rem;">Name</span>
+                <span style="font-weight: 500;">{{ user.name }}</span>
             </div>
-            <div style="flex: 1;">
-                <div style="margin-bottom: 0.75rem;">
-                    <span
-                        style="display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 0.1rem;">Name</span>
-                    <span style="font-weight: 500;">{{ user.name }}</span>
-                </div>
-                <div style="margin-bottom: 0.75rem;">
-                    <span
-                        style="display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 0.1rem;">Email</span>
-                    <span style="font-weight: 500;">{{ user.email }}</span>
-                </div>
-                <div>
-                    <span
-                        style="display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 0.1rem;">Role</span>
-                    <span
-                        style="display: inline-block; padding: 0.2rem 0.6rem; background:rgba(79, 70, 229, 0.1); color: var(--primary); border-radius: 99px; font-size: 0.85rem; font-weight: 600;">
-                        {{ user_type|title }}
-                    </span>
-                </div>
+            <div style="margin-bottom: 0.75rem;">
+                <span
+                    style="display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 0.1rem;">Email</span>
+                <span style="font-weight: 500;">{{ user.email }}</span>
             </div>
-            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #F1F5F9;">
-                <a href="{{ url_for('change_password') }}" class="btn btn-secondary" style="width: 100%;">
-                    <i class="fas fa-key"></i> Change Password
-                </a>
+            <div>
+                <span
+                    style="display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 0.1rem;">Role</span>
+                <span
+                    style="display: inline-block; padding: 0.2rem 0.6rem; background:rgba(79, 70, 229, 0.1); color: var(--primary); border-radius: 99px; font-size: 0.85rem; font-weight: 600;">
+                    {{ user_type|title }}
+                </span>
             </div>
         </div>
-
-        {% if user_type == 'faculty' %}
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-chalkboard-teacher"></i> Class Management</h3>
-            </div>
-            <p style="color: var(--text-muted); margin-bottom: 2rem;">
-                Mark attendance for your lectures using advanced facial recognition technology or manual entry.
-            </p>
-            <div style="display: grid; gap: 1rem; margin-top: auto;">
-                <a href="{{ url_for('attendance') }}" class="btn btn-primary">
-                    <i class="fas fa-camera"></i> Mark Attendance
-                </a>
-                <a href="{{ url_for('manual_attendance') }}" class="btn btn-secondary">
-                    <i class="fas fa-pen"></i> Manual Entry
-                </a>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-chart-pie"></i> Quick Stats</h3>
-            </div>
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-                <span style="color: var(--text-muted);">Today's Attendance</span>
-                <span style="font-size: 1.5rem; font-weight: 700; color: var(--success);">{{ stats.today }}</span>
-            </div>
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="color: var(--text-muted);">Total Students</span>
-                <span style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">{{ stats.students }}</span>
-            </div>
-            <div style="margin-top: 1.5rem;">
-                <a href="{{ url_for('reports') }}" class="btn btn-secondary" style="width: 100%;">
-                    <i class="fas fa-file-alt"></i> View Reports
-                </a>
-            </div>
-        </div>
-        {% endif %}
-
-        {% if user_type == 'admin' %}
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-user-shield"></i> Administration</h3>
-            </div>
-            <p style="color: var(--text-muted); margin-bottom: 2rem;">
-                Manage student records, faculty members, subjects, and system settings.
-            </p>
-            <div style="display: grid; gap: 1rem; margin-top: auto;">
-                <a href="{{ url_for('add_student') }}" class="btn btn-primary">
-                    <i class="fas fa-user-plus"></i> Add Student
-                </a>
-                <a href="{{ url_for('add_faculty') }}" class="btn btn-secondary">
-                    <i class="fas fa-user-tie"></i> Add Faculty
-                </a>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-server"></i> System Overview</h3>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div style="padding: 1rem; background: #F8FAFC; border-radius: 8px; text-align: center;">
-                    <span style="display: block; font-size: 2rem; font-weight: 700; color: var(--primary);">{{
-                        stats.students }}</span>
-                    <span style="font-size: 0.85rem; color: var(--text-muted);">Students</span>
-                </div>
-                <div style="padding: 1rem; background: #F8FAFC; border-radius: 8px; text-align: center;">
-                    <span style="display: block; font-size: 2rem; font-weight: 700; color: var(--accent);">{{
-                        stats.subjects }}</span>
-                    <span style="font-size: 0.85rem; color: var(--text-muted);">Subjects</span>
-                </div>
-            </div>
-            <div style="margin-top: 1.5rem;">
-                <a href="{{ url_for('reports') }}" class="btn btn-secondary" style="width: 100%;">
-                    <i class="fas fa-chart-line"></i> Analytics
-                </a>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- Charts Section -->
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 2rem;">
-        <div class="chart-container">
-            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text-main);">Attendance
-                Trends (Last 7 Days)</h3>
-            <canvas id="trendChart"></canvas>
-        </div>
-        <div class="chart-container">
-            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text-main);">Today's
-                Overview</h3>
-            <canvas id="statusChart"></canvas>
+        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #F1F5F9;">
+            <a href="{{ url_for('change_password') }}" class="btn btn-secondary" style="width: 100%;">
+                <i class="fas fa-key"></i> Change Password
+            </a>
         </div>
     </div>
+
+    {% if user_type == 'faculty' %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-chalkboard-teacher"></i> Class Management</h3>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">
+            Mark attendance for your lectures using advanced facial recognition technology or manual entry.
+        </p>
+        <div style="display: grid; gap: 1rem; margin-top: auto;">
+            <a href="{{ url_for('attendance') }}" class="btn btn-primary">
+                <i class="fas fa-camera"></i> Mark Attendance
+            </a>
+            <a href="{{ url_for('manual_attendance') }}" class="btn btn-secondary">
+                <i class="fas fa-pen"></i> Manual Entry
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-chart-pie"></i> Quick Stats</h3>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <span style="color: var(--text-muted);">Today's Attendance</span>
+            <span style="font-size: 1.5rem; font-weight: 700; color: var(--success);">{{ stats.today }}</span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Total Students</span>
+            <span style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">{{ stats.students }}</span>
+        </div>
+        <div style="margin-top: 1.5rem;">
+            <a href="{{ url_for('reports') }}" class="btn btn-secondary" style="width: 100%;">
+                <i class="fas fa-file-alt"></i> View Reports
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if user_type == 'admin' %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-user-shield"></i> Administration</h3>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">
+            Manage student records, faculty members, subjects, and system settings.
+        </p>
+        <div style="display: grid; gap: 1rem; margin-top: auto;">
+            <a href="{{ url_for('add_student') }}" class="btn btn-primary">
+                <i class="fas fa-user-plus"></i> Add Student
+            </a>
+            <a href="{{ url_for('add_faculty') }}" class="btn btn-secondary">
+                <i class="fas fa-user-tie"></i> Add Faculty
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-server"></i> System Overview</h3>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div style="padding: 1rem; background: #F8FAFC; border-radius: 8px; text-align: center;">
+                <span style="display: block; font-size: 2rem; font-weight: 700; color: var(--primary);">{{
+                    stats.students }}</span>
+                <span style="font-size: 0.85rem; color: var(--text-muted);">Students</span>
+            </div>
+            <div style="padding: 1rem; background: #F8FAFC; border-radius: 8px; text-align: center;">
+                <span style="display: block; font-size: 2rem; font-weight: 700; color: var(--accent);">{{
+                    stats.subjects }}</span>
+                <span style="font-size: 0.85rem; color: var(--text-muted);">Subjects</span>
+            </div>
+        </div>
+        <div style="margin-top: 1.5rem;">
+            <a href="{{ url_for('reports') }}" class="btn btn-secondary" style="width: 100%;">
+                <i class="fas fa-chart-line"></i> Analytics
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Charts Section -->
+<div class="charts-grid">
+    <div class="chart-container">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text-main);">Attendance
+            Trends (Last 7 Days)</h3>
+        <canvas id="trendChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text-main);">Today's
+            Overview</h3>
+        <canvas id="statusChart"></canvas>
+    </div>
+</div>
 </div>
 
 <script>
