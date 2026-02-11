@@ -59,11 +59,12 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# Session Configuration for Local Dev
+# Session Configuration
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False # Important for HTTP
+app.config['SESSION_COOKIE_SECURE'] = True  # Enable for HTTPS (Render)
+app.config['PERMANENT_SESSION_LIFETIME'] = dt.timedelta(days=7)
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
-app.config['REMEMBER_COOKIE_SECURE'] = False
+app.config['REMEMBER_COOKIE_SECURE'] = True # Enable for HTTPS
 
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 

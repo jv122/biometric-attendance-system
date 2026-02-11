@@ -84,8 +84,10 @@ function updateUIState(state, data = {}) {
             stopTimer(); // No timer for reopened session
         }
 
-        // Ensure camera is running
-        if (!stream) startCameraInternal();
+        if (state === 'Active' || state === 'Reopened') {
+            // Ensure camera is running ONLY if active
+            if (!stream) startCameraInternal();
+        }
 
     } else if (state === 'Ended') {
         startBtn.style.display = 'inline-block';

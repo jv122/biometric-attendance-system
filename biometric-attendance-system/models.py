@@ -64,7 +64,7 @@ class Subject(db.Model):
     class_name = db.Column(db.String(10), nullable=False) # FY/SY/TY
     semester = db.Column(db.Integer, nullable=False, default=1) # 1-6
     
-    attendance_records = db.relationship('AttendanceRecord', backref='subject', lazy=True)
+    attendance_records = db.relationship('AttendanceRecord', backref='subject', lazy=True, cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<Subject {self.name} ({self.class_name})>'
@@ -140,8 +140,8 @@ class Timetable(db.Model):
     room_number = db.Column(db.String(20), nullable=True)
     
     # Relationships
-    subject = db.relationship('Subject', backref='timetable_slots', foreign_keys=[subject_id])
-    faculty = db.relationship('Faculty', backref='timetable_slots', foreign_keys=[faculty_id])
+    subject = db.relationship('Subject', backref=db.backref('timetable_slots', cascade='all, delete-orphan'), foreign_keys=[subject_id])
+    faculty = db.relationship('Faculty', backref=db.backref('timetable_slots', cascade='all, delete-orphan'), foreign_keys=[faculty_id])
     
     def __repr__(self):
         return f'<Timetable {self.timetable_id} - {self.class_name}>'
