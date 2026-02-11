@@ -203,12 +203,19 @@ def login():
             # For students, 'email' field in form will carry enrollment number
             user = Student.query.filter_by(enrollment_number=email).first()
             
-        if user and check_password_hash(user.password, password):
-            login_user(user)
-            session['user_type'] = user_type
-            if user_type == 'student':
-                return redirect(url_for('student_dashboard'))
-            return redirect(url_for('dashboard'))
+        if user:
+            # Verify password hash
+            if check_password_hash(user.password, password):
+                print(f"DEBUG: Login successful for {email}")
+                login_user(user)
+                session['user_type'] = user_type
+                if user_type == 'student':
+                    return redirect(url_for('student_dashboard'))
+                return redirect(url_for('dashboard'))
+            else:
+                print(f"DEBUG: Invalid password for {email}")
+        else:
+            print(f"DEBUG: User not found for {email} ({user_type})")
         
         return render_template('login.html', error='Invalid credentials')
     
