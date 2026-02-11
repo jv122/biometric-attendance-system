@@ -126,12 +126,12 @@
 
 <!-- Charts Section -->
 <div class="charts-grid">
-    <div class="chart-container">
+    <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text-main);">Attendance
             Trends (Last 7 Days)</h3>
         <canvas id="trendChart"></canvas>
     </div>
-    <div class="chart-container">
+    <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text-main);">Today's
             Overview</h3>
         <canvas id="statusChart"></canvas>
@@ -140,18 +140,36 @@
 </div>
 
 <script>
-    const trendCtx = document.getElementById('trendChart').getContext('2d');
-    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    document.addEventListener('DOMContentLoaded', function () {
+        const trendCanvas = document.getElementById('trendChart');
+        const statusCanvas = document.getElementById('statusChart');
 
-    // Chart.js global config for consistent font
-    Chart.defaults.font.family = "'Inter', sans-serif";
-    Chart.defaults.color = '#64748B';
+        if (!trendCanvas || !statusCanvas) {
+            console.error("Chart canvases not found!");
+            return;
+        }
 
-    // Parse data from Jinja (if passed as strings) or use directly
-    const trendDates = {{ chart_data.dates | tojson }};
+        const trendCtx = trendCanvas.getContext('2d');
+        const statusCtx = statusCanvas.getContext('2d');
+
+        // Chart.js global config for consistent font
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = '#64748B';
+        } else {
+            console.error("Chart.js library is not loaded!");
+            return;
+        }
+
+        try {
+            // Parse data from Jinja (if passed as strings) or use directly
+            const trendDates = {{ chart_data.dates | tojson
+        }};
     const trendCounts = {{ chart_data.counts | tojson }};
     const presentCount = {{ chart_data.present }};
     const absentCount = {{ chart_data.absent }};
+
+    console.log("Rendering Charts with data:", { trendDates, trendCounts, presentCount, absentCount });
 
     new Chart(trendCtx, {
         type: 'line',
@@ -213,6 +231,10 @@
                 }
             }
         }
+    });
+        } catch (e) {
+        console.error("Error initializing charts:", e);
+    }
     });
 </script>
 {% endblock %}
