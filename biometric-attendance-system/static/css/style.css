@@ -19,7 +19,7 @@
     --accent: #6B8E23;
     /* Olive/Leaf Green */
     --accent-light: #a8c847;
-    
+
     --success: #28a745;
     --success-light: #d4edda;
     --error: #dc3545;
@@ -107,6 +107,15 @@ ul {
     z-index: 1000;
     padding: 1rem 0;
     transition: all 0.3s ease;
+}
+
+.nav-toggle {
+    display: none;
+    color: white;
+    font-size: 1.5rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
 }
 
 .nav-container {
@@ -844,6 +853,7 @@ textarea {
 
 /* Tablet and below (768px) */
 @media (max-width: 768px) {
+
     /* Container padding */
     .container {
         padding: 0 1rem;
@@ -930,13 +940,15 @@ textarea {
 
     /* Forms */
     .form-control {
-        font-size: 16px; /* Prevents zoom on iOS */
+        font-size: 16px;
+        /* Prevents zoom on iOS */
     }
 
     /* Buttons - Larger touch targets */
     .btn {
         padding: 0.875rem 1.25rem;
-        min-height: 44px; /* iOS recommended touch target */
+        min-height: 44px;
+        /* iOS recommended touch target */
     }
 
     .btn-icon {
@@ -977,6 +989,7 @@ textarea {
 
 /* Mobile phones (480px and below) */
 @media (max-width: 480px) {
+
     /* Even smaller padding */
     .container {
         padding: 0 0.75rem;
@@ -1039,6 +1052,7 @@ textarea {
 
 /* Touch device optimizations */
 @media (hover: none) and (pointer: coarse) {
+
     /* Larger touch targets */
     .btn,
     .nav-link,

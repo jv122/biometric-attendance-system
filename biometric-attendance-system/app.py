@@ -418,8 +418,8 @@ def add_faculty():
         
     if request.method == 'POST':
         name = request.form.get('name')
-        email = request.form.get('email')
-        password = request.form.get('password')
+        email = request.form.get('email').strip().lower()
+        password = request.form.get('password').strip()
         contact_no = request.form.get('contact_no')
         
         if not all([name, email, password, contact_no]):

@@ -1,0 +1,168 @@
+/* --- Mobile Responsiveness --- */
+
+/* Tablets & Mobile Devices (< 768px) */
+@media screen and (max-width: 768px) {
+    
+    /* Layout */
+    .container {
+        padding: 0 1rem;
+    }
+
+    .main-content {
+        padding: 1.5rem 0;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .section-actions {
+        width: 100%;
+    }
+
+    .section-actions .btn {
+        flex: 1;
+    }
+
+    /* Navbar - Hamburger Menu */
+    .navbar {
+        padding: 0.75rem 0;
+    }
+    
+    .nav-toggle {
+        display: block; /* Make sure this is visible on mobile */
+        background: transparent;
+        border: none;
+        color: white;
+        font-size: 1.25rem;
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+
+    .nav-links {
+        display: none; /* Hidden by default */
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        padding-top: 1rem;
+        margin-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        gap: 0;
+    }
+    
+    .nav-links.active {
+        display: flex; /* Shown when toggled */
+    }
+
+    .nav-link {
+        width: 100%;
+        padding: 0.75rem 0;
+        border-radius: 0;
+    }
+
+    .nav-link::before {
+        display: none; /* Remove underline effect on mobile */
+    }
+
+    .user-profile {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: none;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    /* Login Page */
+    .login-split {
+        grid-template-columns: 1fr;
+        min-height: auto;
+    }
+    
+    .login-brand {
+        padding: 3rem 1.5rem;
+        min-height: 200px;
+    }
+
+    .login-panel {
+        padding: 2rem 1.5rem;
+    }
+
+    .login-card {
+        padding: 1.5rem;
+        box-shadow: none; /* Simplify for mobile */
+        border: none;
+        background: transparent;
+    }
+
+    /* Dashboard & Grids */
+    .dashboard-grid {
+        grid-template-columns: 1fr; /* Stack cards */
+        gap: 1rem;
+    }
+
+    .stat-card {
+        padding: 1.5rem;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+    }
+
+    /* Forms */
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .login-header h2 {
+        font-size: 1.5rem;
+    }
+
+    /* Tables - Horizontal Scroll */
+    .table-container {
+        border-radius: var(--radius-sm);
+    }
+    
+    .table-responsive {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table th, .table td {
+        padding: 0.75rem 1rem;
+        white-space: nowrap; /* Prevent wrapping implies scrolling */
+    }
+    
+    /* Attendance Camera */
+    .camera-box {
+        border-width: 3px;
+    }
+}
+
+/* Small Mobile Devices (< 480px) */
+@media screen and (max-width: 480px) {
+    .section-title {
+        font-size: 1.5rem;
+    }
+    
+    .btn {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.9rem;
+        width: 100%; /* Full width buttons */
+    }
+    
+    .nav-brand {
+        font-size: 1.25rem;
+    }
+    
+    .modal {
+        padding: 1.5rem;
+        border-radius: var(--radius-md);
+    }
+}
