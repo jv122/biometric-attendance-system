@@ -96,6 +96,11 @@ login_manager.login_view = 'login'
 os.makedirs('database', exist_ok=True)
 os.makedirs('static/uploads', exist_ok=True)
 
+@app.before_request
+def log_request_info():
+    if request.endpoint != 'static':
+        print(f"DEBUG: Request to {request.path} | Method: {request.method} | User: {current_user} | Session: {list(session.keys())}")
+
 @login_manager.user_loader
 def load_user(user_id):
     print(f"DEBUG: load_user called with {user_id}")
@@ -511,13 +516,22 @@ def add_subject():
 @app.route('/delete_subject/<int:id>', methods=['POST'])
 @login_required
 def delete_subject(id):
+    print(f"DEBUG: delete_subject called with id={id}, user={current_user}, session_keys={list(session.keys())}")
     if session.get('user_type') != 'admin':
+        print("DEBUG: Access denied. Not admin.")
         return redirect(url_for('dashboard'))
         
     sub = Subject.query.get_or_404(id)
-    db.session.delete(sub)
-    db.session.commit()
-    flash('Subject deleted', 'success')
+    print(f"DEBUG: Deleting subject {sub}")
+    try:
+        db.session.delete(sub)
+        db.session.commit()
+        print("DEBUG: Subject deleted successfully")
+        flash('Subject deleted', 'success')
+    except Exception as e:
+        db.session.rollback()
+        print(f"ERROR: Failed to delete subject: {e}")
+        flash('Error deleting subject', 'error')
     return redirect(url_for('subjects'))
 
 # --- ATTENDANCE ---
