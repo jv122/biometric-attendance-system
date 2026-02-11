@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for dlib compilation
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     cmake \
     build-essential \
@@ -11,17 +11,12 @@ RUN apt-get update && apt-get install -y \
     libx11-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy everything first
-COPY . .
+# Copy everything
+COPY . /app/
 
-# List contents to debug
-RUN ls -la /app/
+# Install dependencies
+RUN pip install -r /app/requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Expose port
 EXPOSE 8080
 
-# Run with gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
