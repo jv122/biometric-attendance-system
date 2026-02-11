@@ -123,7 +123,9 @@
         });
     </script>
 
-    {% block scripts %}{% endblock %}
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='js/ui-enhancements.js') }}"></script>
+    {% endblock %}
 </body>
 
 </html>

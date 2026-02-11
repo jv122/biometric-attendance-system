@@ -1,5 +1,67 @@
 /* Enhanced page-specific styles */
 
+/* Ripple effect for buttons */
+.btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: scale(0);
+    animation: ripple-animation 0.6s ease-out;
+    pointer-events: none;
+}
+
+@keyframes ripple-animation {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* Input focused state */
+.form-group.input-focused input,
+.form-group.input-focused textarea,
+.form-group.input-focused select {
+    border-color: var(--accent) !important;
+}
+
+.is-invalid {
+    border-color: var(--error) !important;
+    background-color: rgba(220, 53, 69, 0.05) !important;
+}
+
+/* Tooltip */
+.tooltip-popup {
+    position: fixed;
+    background: var(--primary);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    z-index: 1001;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideUp 0.2s ease-out;
+}
+
+.tooltip-popup::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid var(--primary);
+}
+
 /* Dashboard Grid */
 .dashboard-grid {
     display: grid;
@@ -191,11 +253,15 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     z-index: 999;
     backdrop-filter: blur(4px);
+}
+
+.modal-overlay.active {
+    display: flex;
 }
 
 .modal {
@@ -301,6 +367,8 @@
     width: 40px;
     height: 40px;
     animation: spin 0.6s linear infinite;
+    display: inline-block;
+    margin-right: 0.5rem;
 }
 
 @keyframes spin {
