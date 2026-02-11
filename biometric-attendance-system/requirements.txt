@@ -4,7 +4,9 @@ Flask-Login==0.6.3
 Flask-WTF==1.2.1
 Werkzeug==3.0.1
 opencv-python-headless==4.8.1.78
-# face-recognition==1.3.0  # Disabled for Render Free Tier (Memory Limit)
+# Pre-compiled dlib for Python 3.11 on Linux (Fixes Render Memory Error)
+https://github.com/jlumbroso/free-python-wheels/releases/download/v0.0.1/dlib-19.24.99-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+face-recognition==1.3.0
 numpy==1.26.2
 Pillow==10.1.0
 pandas==2.1.4
