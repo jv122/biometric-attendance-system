@@ -17,7 +17,7 @@
 
 <div class="card">
     {% if slots %}
-    <div class="table-container">
+    <div class="table-container table-responsive">
         <table class="data-table">
             <thead>
                 <tr>
@@ -31,27 +31,27 @@
                 </tr>
             </thead>
             <tbody>
-                        {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
-            {% for slot in slots %}
-            <tr>
-                <td><strong>{{ days[slot.day_of_week] }}</strong></td>
-                <td>{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}</td>
-                <td><span class="badge badge-muted">{{ slot.class_name }} • Sem {{ slot.semester }}</span></td>
-                <td>{{ slot.subject.name }}</td>
-                <td>{{ slot.faculty.name }}</td>
-                <td>{{ slot.room_number or 'N/A' }}</td>
-                <td>
-                    <form method="POST" action="{{ url_for('delete_timetable_slot', slot_id=slot.timetable_id) }}"
-                        style="display:inline;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                        <button type="submit" class="btn-icon delete" title="Delete"
-                            onclick="return confirm('Delete this slot?')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
+                {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                {% for slot in slots %}
+                <tr>
+                    <td><strong>{{ days[slot.day_of_week] }}</strong></td>
+                    <td>{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}</td>
+                    <td><span class="badge badge-muted">{{ slot.class_name }} • Sem {{ slot.semester }}</span></td>
+                    <td>{{ slot.subject.name }}</td>
+                    <td>{{ slot.faculty.name }}</td>
+                    <td>{{ slot.room_number or 'N/A' }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('delete_timetable_slot', slot_id=slot.timetable_id) }}"
+                            style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                            <button type="submit" class="btn-icon delete" title="Delete"
+                                onclick="return confirm('Delete this slot?')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>

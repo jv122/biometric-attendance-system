@@ -807,6 +807,20 @@ textarea {
     }
 }
 
+/* Default Student Dashboard Grid (Desktop) */
+.student-dashboard-grid {
+    grid-template-columns: 1fr 2fr;
+}
+
+/* targeted via specific parent/child if needed, but dashboard-grid default is usually auto-fit */
+@media screen and (min-width: 769px) {
+
+    /* Specific override for attendance page to keep the camera section larger on desktop */
+    .dashboard-grid:has(.camera-box) {
+        grid-template-columns: 3fr 2fr;
+    }
+}
+
 .login-panel {
     display: flex;
     align-items: center;

@@ -1,9 +1,9 @@
-/* --- Mobile Responsiveness --- */
+/* --- Mobile Responsiveness (Comprehensive) --- */
 
 /* Tablets & Mobile Devices (< 768px) */
 @media screen and (max-width: 768px) {
-    
-    /* Layout */
+
+    /* Global Layout & Typography */
     .container {
         padding: 0 1rem;
     }
@@ -11,28 +11,48 @@
     .main-content {
         padding: 1.5rem 0;
     }
-    
+
+    h1 {
+        font-size: 1.75rem !important;
+    }
+
+    h2 {
+        font-size: 1.5rem !important;
+    }
+
+    h3 {
+        font-size: 1.25rem !important;
+    }
+
     .page-header {
         flex-direction: column;
         align-items: flex-start;
         gap: 1rem;
     }
 
+    .section-title {
+        font-size: 1.5rem;
+    }
+
     .section-actions {
         width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
     }
 
     .section-actions .btn {
-        flex: 1;
+        width: 100%;
+        justify-content: center;
     }
 
     /* Navbar - Hamburger Menu */
     .navbar {
         padding: 0.75rem 0;
     }
-    
+
     .nav-toggle {
-        display: block; /* Make sure this is visible on mobile */
+        display: block !important;
         background: transparent;
         border: none;
         color: white;
@@ -42,7 +62,7 @@
     }
 
     .nav-links {
-        display: none; /* Hidden by default */
+        display: none;
         width: 100%;
         flex-direction: column;
         align-items: flex-start;
@@ -51,19 +71,24 @@
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         gap: 0;
     }
-    
+
     .nav-links.active {
-        display: flex; /* Shown when toggled */
+        display: flex;
     }
 
     .nav-link {
         width: 100%;
-        padding: 0.75rem 0;
-        border-radius: 0;
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-sm);
+        margin-bottom: 0.25rem;
+    }
+
+    .nav-link:hover {
+        background: rgba(255, 255, 255, 0.1);
     }
 
     .nav-link::before {
-        display: none; /* Remove underline effect on mobile */
+        display: none;
     }
 
     .user-profile {
@@ -77,56 +102,104 @@
         justify-content: space-between;
     }
 
+    /* --- Page Specifics --- */
+
     /* Login Page */
     .login-split {
-        grid-template-columns: 1fr;
+        display: flex !important;
+        flex-direction: column;
         min-height: auto;
+        height: auto;
     }
-    
+
     .login-brand {
         padding: 3rem 1.5rem;
-        min-height: 200px;
+        min-height: auto;
+        flex: 0 0 auto;
+    }
+
+    .login-brand h1 {
+        font-size: 2.5rem !important;
+    }
+
+    .login-brand i {
+        font-size: 3rem !important;
     }
 
     .login-panel {
-        padding: 2rem 1.5rem;
+        padding: 2rem 1rem;
+        flex: 1 0 auto;
     }
 
     .login-card {
         padding: 1.5rem;
-        box-shadow: none; /* Simplify for mobile */
-        border: none;
-        background: transparent;
+        box-shadow: none;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        /* Subtle border for mobile */
     }
 
-    /* Dashboard & Grids */
+    /* Dashboard & Grid Layouts */
     .dashboard-grid {
-        grid-template-columns: 1fr; /* Stack cards */
+        grid-template-columns: 1fr !important;
+        gap: 1.5rem;
+    }
+
+    /* Attendance / Camera Page */
+    .camera-box {
+        min-height: 250px !important;
+        height: auto;
+        aspect-ratio: 4/3;
+        /* Better for mobile portrait if needed, or stick to auto */
+        border-width: 2px;
+    }
+
+    /* Ensure controls stack below camera naturally via dashboard-grid override above */
+
+    /* Reports / Filter Section */
+    .filter-section {
+        flex-direction: column;
+        align-items: stretch;
         gap: 1rem;
+        padding: 1.25rem;
     }
 
-    .stat-card {
-        padding: 1.5rem;
+    .filter-section .form-group {
+        width: 100%;
+        min-width: 0;
+        margin-bottom: 0;
     }
 
-    .stat-value {
-        font-size: 2rem;
+    .filter-section .btn {
+        width: 100%;
+        margin-top: 0.5rem;
     }
 
     /* Forms */
+    .form-section {
+        padding: 1.5rem 1rem;
+    }
+
     .form-group {
         margin-bottom: 1.25rem;
     }
 
-    .login-header h2 {
-        font-size: 1.5rem;
+    /* Make inputs easier to tap */
+    .form-control,
+    select,
+    .btn {
+        font-size: 16px;
+        /* Prevents iOS zooom on focus */
+        min-height: 48px;
+        /* Touch target size */
     }
 
-    /* Tables - Horizontal Scroll */
+    /* Tables */
     .table-container {
         border-radius: var(--radius-sm);
+        box-shadow: none;
+        border: 1px solid #e2e8f0;
     }
-    
+
     .table-responsive {
         display: block;
         width: 100%;
@@ -134,35 +207,55 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    .table th, .table td {
+    .table th,
+    .table td {
         padding: 0.75rem 1rem;
-        white-space: nowrap; /* Prevent wrapping implies scrolling */
+        white-space: nowrap;
     }
-    
-    /* Attendance Camera */
-    .camera-box {
-        border-width: 3px;
+
+    /* Charts */
+    .chart-container {
+        padding: 1rem;
+    }
+
+    canvas {
+        max-height: 300px;
+    }
+
+    /* Modals */
+    .modal-dialog {
+        margin: 0.5rem;
+        width: auto;
+    }
+
+    .modal-content {
+        border-radius: var(--radius-md);
+    }
+
+    .modal .row {
+        flex-direction: column;
+    }
+
+    .modal .col-md-6 {
+        width: 100%;
     }
 }
 
 /* Small Mobile Devices (< 480px) */
 @media screen and (max-width: 480px) {
-    .section-title {
-        font-size: 1.5rem;
+    .login-brand h1 {
+        font-size: 2rem !important;
     }
-    
+
+    .login-brand p {
+        font-size: 1rem !important;
+    }
+
+    .stat-value {
+        font-size: 1.75rem;
+    }
+
     .btn {
-        padding: 0.75rem 1.25rem;
-        font-size: 0.9rem;
-        width: 100%; /* Full width buttons */
-    }
-    
-    .nav-brand {
-        font-size: 1.25rem;
-    }
-    
-    .modal {
-        padding: 1.5rem;
-        border-radius: var(--radius-md);
+        padding: 0.75rem 1rem;
     }
 }
