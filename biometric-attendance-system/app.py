@@ -1374,4 +1374,5 @@ if __name__ == '__main__':
     else:
         print("DEBUG: start_session route NOT found!")
 
-    app.run(host='0.0.0.0', port=5001, debug=True, ssl_context=ssl_context)
+    port = int(os.environ.get('PORT', 5001))
+    app.run(host='0.0.0.0', port=port, debug=True, ssl_context=ssl_context)
