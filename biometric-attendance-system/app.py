@@ -200,32 +200,43 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form.get('email')
+        email_or_id = request.form.get('email')
         password = request.form.get('password')
-        user_type = request.form.get('user_type')
         
         user = None
-        if user_type == 'admin':
-            user = Admin.query.filter_by(email=email).first()
-        elif user_type == 'faculty':
-            user = Faculty.query.filter_by(email=email).first()
-        elif user_type == 'student':
-            # For students, 'email' field in form will carry enrollment number
-            user = Student.query.filter_by(enrollment_number=email).first()
+        user_type = None
+
+        # Try to find user in all tables
+        # 1. Check Admin
+        user = Admin.query.filter_by(email=email_or_id).first()
+        if user:
+            user_type = 'admin'
+        
+        # 2. Check Faculty
+        if not user:
+            user = Faculty.query.filter_by(email=email_or_id).first()
+            if user:
+                user_type = 'faculty'
+        
+        # 3. Check Student
+        if not user:
+            user = Student.query.filter_by(enrollment_number=email_or_id).first()
+            if user:
+                user_type = 'student'
             
         if user:
             # Verify password hash
             if check_password_hash(user.password, password):
-                print(f"DEBUG: Login successful for {email}")
+                print(f"DEBUG: Login successful for {email_or_id} as {user_type}")
                 login_user(user)
                 session['user_type'] = user_type
                 if user_type == 'student':
                     return redirect(url_for('student_dashboard'))
                 return redirect(url_for('dashboard'))
             else:
-                print(f"DEBUG: Invalid password for {email}")
+                print(f"DEBUG: Invalid password for {email_or_id}")
         else:
-            print(f"DEBUG: User not found for {email} ({user_type})")
+            print(f"DEBUG: User not found for {email_or_id}")
         
         return render_template('login.html', error='Invalid credentials')
     
@@ -506,12 +517,17 @@ def add_subject():
         
     name = request.form.get('name')
     class_name = request.form.get('class_name')
+    semester = request.form.get('semester')
     
-    if name and class_name:
-        sub = Subject(name=name, class_name=class_name)
-        db.session.add(sub)
-        db.session.commit()
-        flash('Subject added successfully', 'success')
+    if name and class_name and semester:
+        try:
+            semester = int(semester)
+            sub = Subject(name=name, class_name=class_name, semester=semester)
+            db.session.add(sub)
+            db.session.commit()
+            flash('Subject added successfully', 'success')
+        except ValueError:
+            flash('Invalid semester', 'error')
     
     return redirect(url_for('subjects'))
 
@@ -526,14 +542,20 @@ def delete_subject(id):
     sub = Subject.query.get_or_404(id)
     print(f"DEBUG: Deleting subject {sub}")
     try:
+        # Manually delete related records to ensure cascade happens even if DB constraints are strict
+        AttendanceRecord.query.filter_by(subject_id=id).delete()
+        AttendanceSession.query.filter_by(subject_id=id).delete()
+        LeaveApplication.query.filter_by(subject_id=id).delete()
+        Timetable.query.filter_by(subject_id=id).delete()
+        
         db.session.delete(sub)
         db.session.commit()
-        print("DEBUG: Subject deleted successfully")
-        flash('Subject deleted', 'success')
+        print("DEBUG: Subject and related records deleted successfully")
+        flash('Subject deleted successfully', 'success')
     except Exception as e:
         db.session.rollback()
         print(f"ERROR: Failed to delete subject: {e}")
-        flash('Error deleting subject', 'error')
+        flash('Error deleting subject: associated records exist', 'error')
     return redirect(url_for('subjects'))
 
 # --- ATTENDANCE ---
@@ -1007,7 +1029,7 @@ def get_attendance():
     for r, s, sub, f in records:
         result.append({
             'date': r.date.strftime('%Y-%m-%d'),
-            'time': r.time.strftime('%H:%M') if r.time else '-',
+            'time': r.time.strftime('%H:%M:%S') if r.time else '-',
             'lecture_number': '-', # Not tracked in DB
             'student_name': s.name,
             'enrollment_number': s.enrollment_number,
@@ -1048,7 +1070,7 @@ def export_attendance():
     for r, s, sub, f in records:
         data.append({
             'Date': r.date.strftime('%Y-%m-%d'),
-            'Time': str(r.time),
+            'Time': r.time.strftime('%H:%M:%S') if r.time else '-',
             'Student Name': s.name,
             'Enrollment': s.enrollment_number,
             'Class': s.class_name,
