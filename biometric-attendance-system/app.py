@@ -226,7 +226,10 @@ def login():
             
         if user:
             # Verify password hash
-            if check_password_hash(user.password, password):
+            is_valid = check_password_hash(user.password, password)
+            print(f"DEBUG: Checking password for {email_or_id} (UserType: {user_type}). Result: {is_valid}")
+            
+            if is_valid:
                 print(f"DEBUG: Login successful for {email_or_id} as {user_type}")
                 login_user(user)
                 session['user_type'] = user_type
